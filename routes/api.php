@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\Booking\TariffController as BookingTariffController;
+use App\Http\Controllers\Api\V1\Booking\TransactionController as BookingController;
 use App\Http\Controllers\Api\V1\Counter\TariffController as CounterTariffController;
 use App\Http\Controllers\Api\V1\Counter\TransactionController as CounterTransactionController;
 use App\Http\Controllers\Api\V1\TransactionController;
@@ -42,5 +44,25 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/transactions/{transaction}', [CounterTransactionController::class, 'show']);
         Route::post('/transactions/{transaction}/confirm-payment', [CounterTransactionController::class, 'confirmPayment']);
         Route::post('/transactions/{transaction}/print', [CounterTransactionController::class, 'printTickets']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Online booking (wisatawan)
+    |--------------------------------------------------------------------------
+    |
+    | Role middleware gates the namespace to visitors and admins; the policy
+    | additionally restricts object access to the owner (and admin reads) and
+    | makes the payment simulation owner-only.
+    |
+    */
+    Route::middleware('role:visitor,admin')->group(function (): void {
+        Route::get('/booking/tariffs', [BookingTariffController::class, 'index']);
+
+        Route::get('/bookings', [BookingController::class, 'index']);
+        Route::post('/bookings', [BookingController::class, 'store']);
+        Route::get('/bookings/{transaction}', [BookingController::class, 'show']);
+        Route::post('/bookings/{transaction}/simulate-payment', [BookingController::class, 'simulatePayment']);
+        Route::post('/bookings/{transaction}/print', [BookingController::class, 'printTickets']);
     });
 });

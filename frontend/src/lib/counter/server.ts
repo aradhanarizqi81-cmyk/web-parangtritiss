@@ -1,14 +1,15 @@
 import { laravelFetch } from "@/lib/api/server";
 import type { ApiResult } from "@/lib/api/types";
 import { getSessionToken } from "@/lib/auth/session";
-import type { CounterTariffs, CounterTransaction } from "./types";
+import type { TariffCatalog } from "@/lib/pricing/tariffs";
+import type { CounterTransaction } from "./types";
 
 /**
  * Pembacaan data loket dari server component. Token diambil dari cookie
  * HttpOnly, jadi halaman tidak perlu memanggil BFF route handler sendiri.
  */
 export async function fetchCounterTariffs(): Promise<
-  ApiResult<{ data: CounterTariffs }>
+  ApiResult<{ data: TariffCatalog }>
 > {
   const token = await getSessionToken();
 
@@ -21,7 +22,7 @@ export async function fetchCounterTariffs(): Promise<
     };
   }
 
-  return laravelFetch<{ data: CounterTariffs }>("/api/v1/counter/tariffs", {
+  return laravelFetch<{ data: TariffCatalog }>("/api/v1/counter/tariffs", {
     token,
   });
 }

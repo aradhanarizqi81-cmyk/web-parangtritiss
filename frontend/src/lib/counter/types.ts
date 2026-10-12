@@ -2,25 +2,10 @@
  * Kontrak data untuk alur loket (counter). Bentuknya mengikuti
  * CounterTransactionResource di backend; NIK mentah tidak pernah ada di sini,
  * hanya `masked_nik`.
+ *
+ * Katalog tarif (`TariffCatalog`) dan estimasi biaya dipakai bersama dengan
+ * alur booking online, lihat `@/lib/pricing/tariffs`.
  */
-
-export type VisitorTariff = {
-  code: string;
-  name: string;
-  unit_tariff: number;
-};
-
-export type VehicleTypeTariff = {
-  id: number;
-  code: string;
-  name: string;
-  unit_tariff: number;
-};
-
-export type CounterTariffs = {
-  visitor_tariff: VisitorTariff | null;
-  vehicle_types: VehicleTypeTariff[];
-};
 
 export type CounterVisitorInput = {
   full_name: string;

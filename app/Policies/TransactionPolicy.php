@@ -98,4 +98,66 @@ class TransactionPolicy
     {
         return $this->viewCounter($user, $transaction);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Online booking abilities
+    |--------------------------------------------------------------------------
+    |
+    | Separate again from the counter abilities: holding a staff login must not
+    | by itself grant access to a visitor's online booking. Only the owner (and
+    | an admin, for read-only administration) may touch booking data.
+    |
+    */
+
+    /**
+     * Only visitors may open an online booking.
+     */
+    public function createBooking(User $user): bool
+    {
+        return $user->hasRole(Role::Visitor);
+    }
+
+    /**
+     * An online booking is visible to its owner and, administratively, to an
+     * admin. Cashier and gate staff are denied even though they are logged in.
+     */
+    public function viewBooking(User $user, Transaction $transaction): bool
+    {
+        if ($transaction->source !== TransactionSource::Online) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return $transaction->user_id !== null
+            && $transaction->user_id === $user->id;
+    }
+
+    /**
+     * Only the owning visitor may run the payment simulation for a booking.
+     *
+     * An admin can read a booking administratively, but settling the payment is
+     * a financial action that belongs to the visitor who owns it. "Not yet
+     * paid" is a state rule enforced by the service (409 on repeats).
+     */
+    public function simulateBookingPayment(User $user, Transaction $transaction): bool
+    {
+        return $transaction->source === TransactionSource::Online
+            && $transaction->user_id !== null
+            && $transaction->user_id === $user->id;
+    }
+
+    /**
+     * Owner or admin may attempt to print an online booking's tickets.
+     *
+     * "Only once paid" is enforced by the service, which answers an unpaid
+     * print with 422.
+     */
+    public function printBookingTickets(User $user, Transaction $transaction): bool
+    {
+        return $this->viewBooking($user, $transaction);
+    }
 }

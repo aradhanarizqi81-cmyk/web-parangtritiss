@@ -26,3 +26,19 @@ export function isStaffRole(role: Role): boolean {
 export function canUseCounter(role: Role): boolean {
   return role === "cashier" || role === "admin";
 }
+
+/**
+ * Peran yang boleh membuka area booking. Wisatawan membuat dan membayar
+ * booking; admin hanya melihat daftarnya (read-only). Ini hanya gerbang
+ * tampilan; backend menegakkan otorisasi lewat policy.
+ */
+export function canUseBooking(role: Role): boolean {
+  return role === "visitor" || role === "admin";
+}
+
+/**
+ * Hanya wisatawan yang boleh membuat atau membayar booking.
+ */
+export function isVisitor(role: Role): boolean {
+  return role === "visitor";
+}

@@ -1,4 +1,28 @@
-import type { CounterTariffs } from "./types";
+/**
+ * Tarif dan estimasi biaya bersama untuk alur loket maupun booking online.
+ *
+ * Nilai `unit_tariff` di sini berasal dari backend dan hanya dipakai untuk
+ * estimasi tampilan. Backend selalu menghitung ulang total saat transaksi
+ * disimpan, sehingga angka di modul ini tidak pernah menjadi sumber kebenaran.
+ */
+
+export type VisitorTariff = {
+  code: string;
+  name: string;
+  unit_tariff: number;
+};
+
+export type VehicleTypeTariff = {
+  id: number;
+  code: string;
+  name: string;
+  unit_tariff: number;
+};
+
+export type TariffCatalog = {
+  visitor_tariff: VisitorTariff | null;
+  vehicle_types: VehicleTypeTariff[];
+};
 
 export type VehicleEstimateLine = {
   vehicleTypeId: number;
@@ -22,7 +46,7 @@ export type CostEstimate = {
  * disimpan, sehingga angka di sini tidak pernah dipercaya sebagai nilai final.
  */
 export function estimateCost(
-  tariffs: CounterTariffs | null,
+  tariffs: TariffCatalog | null,
   visitorCount: number,
   quantities: Record<number, number>,
 ): CostEstimate {

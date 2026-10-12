@@ -1,7 +1,7 @@
 import Link from "next/link";
 import LogoutButton from "@/components/logout-button";
 import { getCurrentUser } from "@/lib/auth/guard";
-import { canUseCounter, roleLabel } from "@/lib/auth/roles";
+import { canUseBooking, canUseCounter, roleLabel } from "@/lib/auth/roles";
 
 export default async function SiteHeader() {
   const user = await getCurrentUser();
@@ -21,6 +21,14 @@ export default async function SiteHeader() {
                   className="text-neutral-700 hover:text-neutral-900"
                 >
                   Loket
+                </Link>
+              ) : null}
+              {canUseBooking(user.role) ? (
+                <Link
+                  href="/booking"
+                  className="text-neutral-700 hover:text-neutral-900"
+                >
+                  Booking
                 </Link>
               ) : null}
               <Link

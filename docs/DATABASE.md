@@ -66,6 +66,18 @@ uang), `reference`, `paid_at`. Unique `transaction_id` menjamin satu transaksi
 hanya memiliki satu catatan pembayaran sehingga pembayaran berhasil ganda tidak
 mungkin terjadi.
 
+- Untuk pembayaran loket (`method=cash`), `reference` kosong.
+- Untuk booking online (`method=simulation`), **`reference` diisi referensi
+  simulasi** yang diterbitkan server (`SIM-…`) dan wajib dikirim klien saat
+  simulasi pembayaran. Sukses bersifat final; kegagalan memakai baris yang sama
+  agar wisatawan dapat mencoba lagi.
+
+### Alur booking online
+Booking online **tidak membuat tiket** saat pembuatan. Hanya setelah simulasi
+pembayaran `success` (yang mengisi `payments.paid_at` dan mengubah
+`transactions.status` menjadi `paid`) barulah satu baris `tickets` dibuat per
+`visitors`. Karena itu `tickets` kosong selama transaksi masih `pending`.
+
 ### `transaction_checkins`
 `transaction_id` (**unik**, cascade), `validated_by` (nullable, `nullOnDelete`),
 `checked_in_at`, `visitor_count_checked_in`. Unique `transaction_id` memastikan

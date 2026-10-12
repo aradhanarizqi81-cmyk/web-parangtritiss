@@ -144,6 +144,78 @@ belum berstatus `paid`. Pencetakan ulang dibedakan di `audit_logs`
 (`counter_transaction.tickets_reprinted`). Barcode check-in gerbang belum aktif
 pada fase ini.
 
+## Endpoint booking online
+
+Semua endpoint di bawah memerlukan `auth:sanctum` **dan** middleware
+`role:visitor,admin`, lalu diotorisasi ulang `TransactionPolicy` yang hanya
+menerima transaksi `source=online`. `cashier` dan `gate_staff` selalu `403`.
+Hanya **wisatawan** yang boleh membuat dan membayar booking; `admin` hanya
+membaca (read-only).
+
+### `GET /api/v1/booking/tariffs`
+Tarif aktif untuk formulir booking (read-only). Bentuk respons identik dengan
+`GET /counter/tariffs`.
+
+### `POST /api/v1/bookings`
+Membuat booking online beserta pengunjung, baris kendaraan, tiket individual,
+dan **satu** pembayaran berstatus `pending`. Booking dimiliki pengguna yang
+login (`user_id`) dengan `source=online`.
+
+- Backend menghitung ulang seluruh total dari tarif aktif di database;
+  `client_total_amount` hanya informasional dan diabaikan.
+- Server menerbitkan **referensi simulasi** (`payments.reference`, format
+  `SIM-…`) yang dipakai pada langkah simulasi pembayaran.
+- Tiket dibuat dalam keadaan belum tercetak dan baru diterbitkan (`issued`) saat
+  pembayaran berhasil.
+
+| Field | Tipe | Wajib | Catatan |
+| --- | --- | --- | --- |
+| `visit_date` | date | ya | hari ini s/d +30 hari |
+| `visitors` | array | ya | 1–500 baris |
+| `visitors[].full_name` | string | ya | maks 255 |
+| `visitors[].nik` | string | ya | tepat 16 angka |
+| `vehicles` | array | tidak | maks 20 baris |
+| `vehicles[].vehicle_type_id` | int | ya | jenis harus **aktif**, tidak boleh duplikat |
+| `vehicles[].quantity` | int | ya | 1–65535 |
+| `client_total_amount` | int | tidak | diabaikan untuk perhitungan |
+
+Respons `201` memuat `message` dan `data` (bentuk sama seperti detail).
+Validasi gagal `422` dan seluruh penyimpanan dibatalkan (satu transaksi database).
+
+### `GET /api/v1/bookings`
+Daftar booking. Wisatawan hanya melihat miliknya; `admin` melihat seluruh
+booking `online`. Maksimal **50** terbaru, **tanpa paginasi**. Hanya memuat
+ringkasan (kode, status, tanggal kunjungan, jumlah wisatawan, total, status
+pembayaran) — tanpa identitas, kendaraan, atau tiket.
+
+### `GET /api/v1/bookings/{id}`
+Detail booking `online`. `403` bila bukan pemilik (dan bukan admin); `404` bila
+tidak ada atau bukan transaksi `online`. Memuat `visitors` (**hanya
+`masked_nik`**), `vehicles`, `payment` (termasuk `simulation_reference`), dan
+`tickets` (kosong sebelum lunas).
+
+### `POST /api/v1/bookings/{id}/simulate-payment`
+Simulasi pembayaran akademik (bukan gateway sungguhan). **Hanya pemilik.** Body
+wajib `outcome` (`success`/`failure`) dan `reference` (referensi simulasi yang
+diterbitkan server saat booking dibuat).
+
+- `success` → `payment.status` `pending → success`, `paid_at` diisi,
+  `transactions.status` `pending → paid`, dan tiket diterbitkan (`issued`).
+- `failure` → `payment.status` `pending → failed`; transaksi tetap `pending` dan
+  **tidak** menerbitkan tiket. Wisatawan dapat mencoba lagi pada baris
+  pembayaran yang sama (referensi tetap).
+- Nilai `amount`/`status` dari klien **diabaikan**; status akhir ditentukan
+  backend. Referensi yang tidak cocok dijawab `422`.
+- Percobaan simulasi setelah pembayaran berhasil dijawab **`409`** (sukses
+  bersifat final). Dijalankan dalam transaksi database dengan row lock.
+
+### `POST /api/v1/bookings/{id}/print`
+Mencatat pencetakan/pencetakan ulang tiket booking: mengisi `tickets.printed_at`
+dan status `printed` tanpa membuat tiket baru. Diizinkan pemilik atau admin,
+hanya setelah `paid` (`422` bila belum lunas). Pencetakan ulang dibedakan di
+`audit_logs` (`booking.tickets_reprinted`). Barcode check-in gerbang belum aktif
+pada fase ini.
+
 ## Matriks akses
 
 | Endpoint | visitor | cashier | gate_staff | admin | anonim |
@@ -158,6 +230,12 @@ pada fase ini.
 | `GET /counter/transactions/{id}` | ⛔ 403 | ✅ semua loket | ⛔ 403 | ✅ | ⛔ 401 |
 | `POST /counter/transactions/{id}/confirm-payment` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
 | `POST /counter/transactions/{id}/print` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
+| `GET /booking/tariffs` | ✅ | ⛔ 403 | ⛔ 403 | ✅ | ⛔ 401 |
+| `POST /bookings` | ✅ | ⛔ 403 | ⛔ 403 | ⛔ 403 | ⛔ 401 |
+| `GET /bookings` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ✅ semua online | ⛔ 401 |
+| `GET /bookings/{id}` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ✅ online | ⛔ 401 |
+| `POST /bookings/{id}/simulate-payment` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ⛔ 403 | ⛔ 401 |
+| `POST /bookings/{id}/print` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ✅ online | ⛔ 401 |
 
 ## CORS
 
@@ -173,5 +251,6 @@ pernah dikirim ke browser. Lihat [`docs/FRONTEND.md`](FRONTEND.md).
 ## Belum termasuk cakupan
 
 - Reset password dan verifikasi email **belum diimplementasikan**.
-- Booking online, simulasi pembayaran, barcode & check-in gerbang, dashboard, dan
-  laporan dikerjakan pada fase berikutnya.
+- Pembayaran memakai **simulasi akademik**, bukan gateway sungguhan.
+- Barcode & check-in gerbang, dashboard bisnis, laporan, pembatalan booking
+  (`cancelled`), dan pengelolaan pengguna dikerjakan pada fase berikutnya.

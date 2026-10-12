@@ -9,12 +9,10 @@ use App\Enums\TransactionSource;
 use App\Enums\TransactionStatus;
 use App\Models\AuditLog;
 use App\Models\Payment;
-use App\Models\Tariff;
 use App\Models\Ticket;
 use App\Models\Transaction;
 use App\Models\TransactionVehicle;
 use App\Models\User;
-use App\Models\VehicleType;
 use App\Models\Visitor;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +26,8 @@ use Illuminate\Support\Facades\DB;
  */
 class CounterTransactionService
 {
+    public function __construct(private readonly PricingService $pricing) {}
+
     /**
      * Create a counter sale: transaction, visitors, individual tickets,
      * vehicle lines, and a pending cash payment.
@@ -37,53 +37,13 @@ class CounterTransactionService
     public function create(User $cashier, array $data): Transaction
     {
         return DB::transaction(function () use ($cashier, $data): Transaction {
-            $visitorTariff = Tariff::query()
-                ->active()
-                ->where('code', Tariff::CODE_VISITOR)
-                ->first();
-
-            if ($visitorTariff === null) {
-                abort(422, 'Tarif wisatawan aktif belum dikonfigurasi.');
-            }
-
             $visitors = $data['visitors'];
             $vehicleLines = $data['vehicles'] ?? [];
 
             $visitorCount = count($visitors);
-            $visitorTotal = $visitorCount * $visitorTariff->unit_tariff;
-
-            // Only active vehicle types may be sold; the Form Request already
-            // rejects inactive ids, this is the authoritative re-check.
-            $vehicleTypes = VehicleType::query()
-                ->active()
-                ->whereIn('id', array_column($vehicleLines, 'vehicle_type_id'))
-                ->get()
-                ->keyBy('id');
-
-            $vehicleTotal = 0;
-            $resolvedVehicles = [];
-
-            foreach ($vehicleLines as $line) {
-                $type = $vehicleTypes->get($line['vehicle_type_id']);
-
-                if ($type === null) {
-                    abort(422, 'Jenis kendaraan tidak ditemukan atau tidak aktif.');
-                }
-
-                $quantity = (int) $line['quantity'];
-                $subtotal = $quantity * $type->unit_tariff;
-                $vehicleTotal += $subtotal;
-
-                $resolvedVehicles[] = [
-                    'vehicle_type_id' => $type->id,
-                    'quantity' => $quantity,
-                    'unit_tariff' => $type->unit_tariff,
-                    'subtotal' => $subtotal,
-                ];
-            }
 
             // Recomputed from the database, never taken from the request.
-            $totalAmount = $visitorTotal + $vehicleTotal;
+            $quote = $this->pricing->quote($visitorCount, $vehicleLines);
 
             $transaction = Transaction::create([
                 'user_id' => null,
@@ -91,10 +51,10 @@ class CounterTransactionService
                 'source' => TransactionSource::Counter,
                 'visit_date' => $data['visit_date'],
                 'visitor_count' => $visitorCount,
-                'visitor_unit_tariff' => $visitorTariff->unit_tariff,
-                'visitor_total' => $visitorTotal,
-                'vehicle_total' => $vehicleTotal,
-                'total_amount' => $totalAmount,
+                'visitor_unit_tariff' => $quote['visitor_unit_tariff'],
+                'visitor_total' => $quote['visitor_total'],
+                'vehicle_total' => $quote['vehicle_total'],
+                'total_amount' => $quote['total_amount'],
                 'status' => TransactionStatus::Pending,
             ]);
 
@@ -113,7 +73,7 @@ class CounterTransactionService
                 ]);
             }
 
-            foreach ($resolvedVehicles as $vehicle) {
+            foreach ($quote['vehicles'] as $vehicle) {
                 TransactionVehicle::create([
                     'transaction_id' => $transaction->id,
                     ...$vehicle,
@@ -124,15 +84,15 @@ class CounterTransactionService
             Payment::create([
                 'transaction_id' => $transaction->id,
                 'method' => PaymentMethod::Cash,
-                'amount' => $totalAmount,
+                'amount' => $quote['total_amount'],
                 'status' => PaymentStatus::Pending,
             ]);
 
             AuditLog::record($cashier, 'counter_transaction.created', $transaction, [
                 'transaction_code' => $transaction->transaction_code,
                 'visitor_count' => $visitorCount,
-                'vehicle_total' => $vehicleTotal,
-                'total_amount' => $totalAmount,
+                'vehicle_total' => $quote['vehicle_total'],
+                'total_amount' => $quote['total_amount'],
             ]);
 
             return $transaction;

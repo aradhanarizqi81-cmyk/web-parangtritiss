@@ -16,7 +16,7 @@ transaksi, pembayaran, hak akses, penerbitan tiket, dan check-in.
 
 ## Peran pengguna
 
-- `visitor` — wisatawan (pendaftaran online).
+- `visitor` — wisatawan (pendaftaran & booking online).
 - `admin` — pengelola pengguna, tarif, dashboard, dan laporan.
 - `cashier` — petugas loket.
 - `gate_staff` — petugas gerbang (validasi & check-in barcode).
@@ -122,9 +122,15 @@ Detail arsitektur dan keputusan keamanan ada di [`docs/FRONTEND.md`](docs/FRONTE
 ## Status pengembangan
 
 Dikerjakan bertahap per fase (audit → database → autentikasi → integrasi API &
-frontend → **loket & tiket fisik** → pendaftaran online → barcode & check-in →
-dashboard & laporan → pengujian akhir).
+frontend → **loket & tiket fisik** → **booking online & simulasi pembayaran** →
+barcode & check-in → dashboard & laporan → pengujian akhir).
 
 Alur loket (Fase 5) sudah aktif untuk peran `cashier` dan `admin`: buat transaksi
 tunai di loket, konfirmasi pembayaran, penerbitan tiket individual, dan pencatatan
-pencetakan. Booking online dan check-in barcode gerbang belum termasuk cakupan.
+pencetakan.
+
+Booking online (Fase 6) sudah aktif untuk peran `visitor` (dan `admin` sebagai
+pembaca): wisatawan membuat booking, lalu menyelesaikan **simulasi pembayaran
+akademik** (bukan gateway sungguhan) di halaman detail; tiket diterbitkan hanya
+setelah pembayaran berhasil dan dapat dicetak setelah lunas. Check-in barcode
+gerbang belum termasuk cakupan.

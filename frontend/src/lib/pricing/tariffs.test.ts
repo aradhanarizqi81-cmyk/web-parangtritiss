@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { estimateCost, formatRupiah } from "./estimate";
-import type { CounterTariffs } from "./types";
+import { estimateCost, formatRupiah } from "./tariffs";
+import type { TariffCatalog } from "./tariffs";
 
-const tariffs: CounterTariffs = {
+const tariffs: TariffCatalog = {
   visitor_tariff: { code: "visitor", name: "Wisatawan", unit_tariff: 15000 },
   vehicle_types: [
     { id: 1, code: "motorcycle", name: "Motor", unit_tariff: 2000 },

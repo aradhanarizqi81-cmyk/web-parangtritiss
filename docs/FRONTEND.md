@@ -2,8 +2,8 @@
 
 Frontend berada di `frontend/` dan berkomunikasi dengan REST API Laravel
 (`/api/v1`). Cakupan saat ini: **integrasi autentikasi** (registrasi, login,
-profil, logout) dan **alur loket** (buat transaksi, konfirmasi tunai, tiket,
-cetak).
+profil, logout), **alur loket** (buat transaksi, konfirmasi tunai, tiket, cetak),
+dan **booking online** dengan **simulasi pembayaran** akademik.
 
 ## Stack dan struktur
 
@@ -25,22 +25,36 @@ frontend/
       api/counter/transactions/[id]/route.ts          # BFF: detail
       api/counter/transactions/[id]/confirm-payment/route.ts
       api/counter/transactions/[id]/print/route.ts
+      api/booking/tariffs/route.ts                    # BFF: tarif booking
+      api/bookings/route.ts                           # BFF: daftar + buat booking
+      api/bookings/[id]/route.ts                      # BFF: detail booking
+      api/bookings/[id]/simulate-payment/route.ts     # BFF: simulasi pembayaran
+      api/bookings/[id]/print/route.ts                # BFF: catat cetak tiket
       login/page.tsx                                  # form login (client)
       register/page.tsx                               # form registrasi (client)
       profile/page.tsx                                # profil (server, perlu sesi)
       counter/page.tsx                                # loket (server) + counter-workspace.tsx
       counter/transactions/[id]/page.tsx              # detail (server) + transaction-actions.tsx
       counter/transactions/[id]/print/page.tsx        # halaman cetak tiket
+      booking/page.tsx                                # form booking (server) + booking-form.tsx
+      booking/history/page.tsx                        # riwayat booking (server)
+      booking/[id]/page.tsx                           # detail (server) + payment-simulation.tsx
+      booking/[id]/print/page.tsx                     # halaman cetak tiket booking
       layout.tsx page.tsx globals.css
     components/       site-header.tsx, logout-button.tsx, field.tsx
     components/counter/  status-badge.tsx, ticket-card.tsx, print-button.tsx
     lib/
       api/            config.ts, types.ts, errors.ts, server.ts, client.ts, origin.ts, bff.ts
       auth/           session.ts, guard.ts, roles.ts
-      counter/        types.ts, estimate.ts, server.ts
+      pricing/        tariffs.ts (+ tariffs.test.ts)   # tarif + estimasi + formatRupiah
+      counter/        types.ts, server.ts
+      booking/        types.ts, server.ts, status.ts (+ status.test.ts)
     proxy.ts          # optimistic auth gate (Next 16 Proxy / middleware)
   .env.example
 ```
+
+> `lib/pricing/` adalah modul bersama: tipe katalog tarif, `estimateCost()`, dan
+> `formatRupiah()` dipakai baik oleh formulir loket maupun formulir booking.
 
 ## Variabel lingkungan
 
@@ -136,7 +150,7 @@ HttpOnly. Route handler yang mengubah data memakai `forwardToLaravel()`
 
 1. `/counter` (kasir/admin) memuat tarif aktif dari `GET /api/counter/tariffs`,
    mengisi identitas tiap pengunjung (nama + NIK 16 angka) dan jumlah kendaraan.
-2. `lib/counter/estimate.ts` menghitung **estimasi** biaya di browser. Angka ini
+2. `lib/pricing/tariffs.ts` menghitung **estimasi** biaya di browser. Angka ini
    hanya untuk tampilan; backend menghitung ulang total dari tarif database saat
    `POST /api/counter/transactions`.
 3. Halaman detail `/counter/transactions/[id]` menampilkan status, pembayaran,
@@ -150,6 +164,39 @@ HttpOnly. Route handler yang mengubah data memakai `forwardToLaravel()`
    tercetak fisik — pencetakan bergantung pada printer dan browser.
 
 Detail kontrak endpoint ada di [`docs/API.md`](API.md).
+
+## Alur booking online (Fase 6)
+
+Booking online hanya untuk **wisatawan**; `admin` masuk sebagai pembaca
+(read-only) lewat halaman riwayat. Gerbang tampilan `canUseBooking()` di
+`lib/auth/roles.ts` bukan kontrol keamanan — backend tetap menolak peran lain
+lewat middleware `role:visitor,admin` + policy.
+
+1. `/booking` (wisatawan) memuat tarif dari `GET /api/booking/tariffs`
+   (`lib/pricing/tariffs.ts`), lalu `booking-form.tsx` mengumpulkan tanggal
+   kunjungan (hari ini s/d +30 hari), pengunjung (nama + NIK 16 angka), dan
+   jumlah kendaraan. Angka total di layar hanya estimasi.
+2. `POST /api/bookings` membuat booking `source=online` **milik pengguna yang
+   login**, dengan satu pembayaran `pending` dan **referensi simulasi** dari
+   server. Response `201` diikuti pengalihan ke halaman detail.
+3. `/booking/[id]` menampilkan ringkasan, pengunjung (NIK tersamarkan),
+   kendaraan, pembayaran, dan tiket. `payment-simulation.tsx` muncul hanya untuk
+   pemilik selama status masih `pending`; `admin` tidak dapat membayar atau
+   mencetak atas nama wisatawan.
+4. Simulasi mengirim `{ outcome, reference }` ke
+   `POST /api/bookings/[id]/simulate-payment`. Backend memvalidasi kepemilikan,
+   status, dan referensi; `success` menerbitkan tiket, `failure` membiarkan
+   transaksi `pending` agar bisa dicoba lagi. Percobaan ulang setelah sukses
+   dijawab `409`.
+5. Setelah `paid`, tombol "Cetak tiket" memanggil `POST /api/bookings/[id]/print`
+   (mencatat `printed_at` + audit) lalu membuka `/booking/[id]/print`, halaman
+   ramah-cetak yang memakai ulang `TicketCard`. Halaman cetak **tidak** mengklaim
+   tiket tercetak fisik.
+6. `/booking/history` menampilkan maksimal 50 booking terbaru (milik sendiri
+   untuk wisatawan, seluruh booking online untuk admin).
+
+Simulasi pembayaran adalah **akademik**, bukan gateway sungguhan; lihat
+[`docs/SECURITY.md`](SECURITY.md).
 
 ## Menjalankan
 
@@ -184,5 +231,6 @@ npm run build
 
 ## Belum termasuk cakupan
 
-Booking online, simulasi pembayaran, barcode & check-in gerbang, dashboard
-bisnis, dan pengelolaan pengguna tidak dibuat pada fase ini.
+Barcode & check-in gerbang, dashboard bisnis, laporan, pembatalan booking, dan
+pengelolaan pengguna tidak dibuat pada fase ini. Pembayaran memakai simulasi
+akademik, bukan gateway sungguhan.

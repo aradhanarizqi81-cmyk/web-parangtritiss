@@ -1,17 +1,34 @@
 import StatusBadge from "./status-badge";
-import { formatRupiah } from "@/lib/counter/estimate";
-import type { CounterTicket, CounterTransaction } from "@/lib/counter/types";
+import { formatRupiah } from "@/lib/pricing/tariffs";
 
 /**
- * Kartu tiket individual yang siap dicetak. Sengaja tidak menampilkan NIK
- * lengkap, hanya nama dan NIK tersamarkan.
+ * Bentuk minimum yang dibutuhkan kartu tiket. Dipakai bersama oleh tiket loket
+ * maupun tiket booking online; keduanya memenuhi bentuk ini. Sengaja tidak
+ * menampilkan NIK lengkap, hanya nama dan NIK tersamarkan.
  */
+export type PrintableTicket = {
+  id: number;
+  visitor_id: number;
+  ticket_code: string;
+  status: string;
+  status_label: string;
+  printed_at: string | null;
+};
+
+export type PrintableTransaction = {
+  transaction_code: string;
+  visit_date: string | null;
+  total_amount: number;
+  payment: { status_label: string } | null;
+  visitors: { id: number; full_name: string; masked_nik: string }[];
+};
+
 export default function TicketCard({
   transaction,
   ticket,
 }: {
-  transaction: CounterTransaction;
-  ticket: CounterTicket;
+  transaction: PrintableTransaction;
+  ticket: PrintableTicket;
 }) {
   const visitor = transaction.visitors.find(
     (candidate) => candidate.id === ticket.visitor_id,

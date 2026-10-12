@@ -12,8 +12,9 @@ import Field from "@/components/field";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type { ValidationErrors } from "@/lib/api/types";
-import { estimateCost, formatRupiah } from "@/lib/counter/estimate";
-import type { CounterTariffs, CounterTransaction } from "@/lib/counter/types";
+import { estimateCost, formatRupiah } from "@/lib/pricing/tariffs";
+import type { TariffCatalog } from "@/lib/pricing/tariffs";
+import type { CounterTransaction } from "@/lib/counter/types";
 
 type VisitorRow = { full_name: string; nik: string };
 
@@ -31,7 +32,7 @@ function today(): string {
 
 export default function CounterWorkspace() {
   const router = useRouter();
-  const [tariffs, setTariffs] = useState<CounterTariffs | null>(null);
+  const [tariffs, setTariffs] = useState<TariffCatalog | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [visitDate, setVisitDate] = useState(today);
   const [visitors, setVisitors] = useState<VisitorRow[]>([
@@ -45,7 +46,7 @@ export default function CounterWorkspace() {
   useEffect(() => {
     let active = true;
 
-    apiRequest<{ data: CounterTariffs }>("/api/counter/tariffs")
+    apiRequest<{ data: TariffCatalog }>("/api/counter/tariffs")
       .then((response) => {
         if (active) setTariffs(response.data);
       })

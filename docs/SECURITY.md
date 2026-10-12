@@ -95,6 +95,39 @@ Metadata hanya memuat konteks (mis. tarif lama → baru) tanpa NIK mentah.
   `payment_confirmed`, `tickets_printed`, dan `tickets_reprinted` (tanpa NIK).
 - Pemeriksaan tambahan: `tests/Feature/CounterTransactionTest.php`.
 
+## Booking online dan simulasi pembayaran (Fase 6)
+
+- Semua endpoint booking memerlukan autentikasi **dan** peran `visitor`/`admin`
+  (middleware `role`), lalu diotorisasi ulang per objek oleh `TransactionPolicy`
+  yang hanya menerima transaksi `source=online`. `cashier` dan `gate_staff`
+  ditolak `403` walau sudah login.
+- **Hanya wisatawan yang boleh membuat dan membayar booking.** `createBooking`
+  dan `simulateBookingPayment` menolak `admin`; admin hanya membaca
+  (`viewBooking` mencakup admin).
+- **Total tidak dipercaya dari browser.** `client_total_amount` hanya
+  informasional; backend menghitung ulang total dari tarif aktif dan menyimpan
+  snapshot tarif.
+- **Simulasi pembayaran bukan gateway sungguhan.** Status akhir ditentukan
+  backend dari parameter `outcome`; klien tidak dapat mengirim nominal atau
+  status. Server menerbitkan referensi acak (`SIM-…`) saat booking dibuat dan
+  memverifikasinya dengan perbandingan waktu-tetap (`hash_equals`); referensi
+  yang tidak cocok dijawab `422`.
+- **Pembayaran sukses bersifat final**: simulasi ulang dijawab `409`, dicek di
+  dalam transaksi database dengan row lock. Kegagalan meninggalkan baris
+  pembayaran yang sama sehingga wisatawan dapat mencoba lagi tanpa membuat
+  pembayaran ganda (`payments.transaction_id` unik).
+- **Tiket hanya diterbitkan setelah pembayaran berhasil** (`issued`); sebelum
+  lunas, respons `tickets` kosong. Cetak hanya diizinkan setelah `paid` (`422`
+  bila belum lunas).
+- Otorisasi objek memakai `403` alih-alih `404` agar tidak membocorkan
+  keberadaan booking milik pengguna lain.
+- NIK tetap terenkripsi; respons, halaman, URL, barcode, log, dan metadata
+  `audit_logs` hanya memuat `masked_nik`.
+- Pencatatan pada `audit_logs` (tanpa NIK): `booking.created`,
+  `booking.payment_simulated_success`, `booking.payment_simulated_failed`,
+  `booking.tickets_printed`, dan `booking.tickets_reprinted`.
+- Pemeriksaan tambahan: `tests/Feature/BookingTest.php`.
+
 ## CORS
 
 - `config/cors.php` hanya mengizinkan origin development yang tercantum pada

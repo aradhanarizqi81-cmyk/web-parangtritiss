@@ -4,7 +4,7 @@ import StatusBadge from "@/components/counter/status-badge";
 import TransactionActions from "./transaction-actions";
 import { getCurrentUser } from "@/lib/auth/guard";
 import { canUseCounter } from "@/lib/auth/roles";
-import { formatRupiah } from "@/lib/counter/estimate";
+import { formatRupiah } from "@/lib/pricing/tariffs";
 import { fetchCounterTransaction } from "@/lib/counter/server";
 
 export const instant = false;
