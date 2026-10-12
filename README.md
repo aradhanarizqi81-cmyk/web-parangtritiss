@@ -21,6 +21,12 @@ transaksi, pembayaran, hak akses, penerbitan tiket, dan check-in.
 - `cashier` — petugas loket.
 - `gate_staff` — petugas gerbang (validasi & check-in barcode).
 
+## Autentikasi
+
+Endpoint `/api/v1/auth/*` (register, login, me, logout) memakai Sanctum personal
+access token dengan header `Authorization: Bearer <token>`. Detail lengkap ada di
+[`docs/API.md`](docs/API.md).
+
 ## Prasyarat
 
 - PHP 8.3+ dengan ekstensi `pdo_mysql`, `pdo_sqlite`, dan `sqlite3` aktif.
@@ -90,6 +96,7 @@ perubahan tarif tidak mengubah transaksi historis.
 
 ## Dokumentasi
 
+- [`docs/API.md`](docs/API.md) — endpoint `/api/v1`, autentikasi, dan matriks akses.
 - [`docs/SETUP.md`](docs/SETUP.md) — konfigurasi development yang dapat dijalankan ulang.
 - [`docs/DATABASE.md`](docs/DATABASE.md) — skema database, relasi, dan batasan.
 - [`docs/SECURITY.md`](docs/SECURITY.md) — kebijakan privasi NIK dan retensi data.

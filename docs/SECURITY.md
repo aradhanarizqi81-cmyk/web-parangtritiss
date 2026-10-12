@@ -30,8 +30,25 @@ Metadata hanya memuat konteks (mis. tarif lama → baru) tanpa NIK mentah.
   sehingga integritas laporan keuangan tetap terjaga.
 - NIK disimpan hanya selama diperlukan untuk keperluan pendataan kunjungan.
 
-## Kontrol akses (diterapkan pada fase autentikasi)
+## Kontrol akses
 
 - Otorisasi ditegakkan di backend; menyembunyikan tombol di frontend tidak dianggap cukup.
 - Wisatawan tidak dapat membaca atau mengubah transaksi milik pengguna lain.
 - Fungsi `cashier`, `gate_staff`, dan `admin` dibatasi sesuai tanggung jawabnya.
+
+## Autentikasi dan otorisasi (Fase 3)
+
+- Autentikasi memakai **Sanctum personal access token** (Bearer); bukan session-cookie.
+- Token hanya diterbitkan pada respons `register` dan `login`. Token tersimpan
+  di database dalam bentuk hash dan tidak pernah dikembalikan lewat API.
+- Registrasi publik selalu menghasilkan peran `visitor`; peran pada body diabaikan.
+  Akun `admin`, `cashier`, dan `gate_staff` hanya dibuat lewat seeder/alur administratif.
+- Login dibatasi 5 percobaan gagal per kombinasi email + IP.
+- `logout` hanya mencabut token yang dipakai pada request tersebut.
+- Middleware `role` (alias) membatasi endpoint per peran, dan `TransactionPolicy`
+  menegakkan kepemilikan data sehingga wisatawan tidak bisa mengakses transaksi milik
+  pengguna lain — middleware peran saja tidak dianggap cukup.
+- Permintaan API tanpa autentikasi selalu dijawab JSON `401`, tidak dialihkan ke
+  halaman login web.
+- Pemeriksaan tambahan: `tests/Feature/AuthTest.php` dan
+  `tests/Feature/TransactionAccessTest.php`.
