@@ -52,3 +52,28 @@ Metadata hanya memuat konteks (mis. tarif lama → baru) tanpa NIK mentah.
   halaman login web.
 - Pemeriksaan tambahan: `tests/Feature/AuthTest.php` dan
   `tests/Feature/TransactionAccessTest.php`.
+
+## Penyimpanan token di frontend (Fase 4)
+
+- Frontend Next.js **tidak menyimpan token di `localStorage`/`sessionStorage`**.
+  Token hanya hidup di cookie **HttpOnly** yang diset oleh route handler server
+  (BFF), sehingga JavaScript di browser tidak dapat membacanya.
+- Token tidak dikembalikan ke browser, tidak dimasukkan ke URL, log, atau
+  variabel `NEXT_PUBLIC_`. Semua pemanggilan Laravel ber-`Authorization: Bearer`
+  dilakukan dari sisi server Next.js.
+- Cookie memakai `SameSite=Lax`, `Secure` (aktif saat produksi; dapat ditimpa
+  lewat `SESSION_COOKIE_SECURE=false` untuk uji lokal), dan `maxAge` 8 jam.
+- Route handler yang mengubah state menolak permintaan lintas situs lewat
+  pemeriksaan origin (HTTP 403), sebagai mitigasi CSRF karena cookie terkirim
+  otomatis.
+- Tampilan berbasis peran hanya untuk pengalaman pengguna; otorisasi tetap
+  ditegakkan di backend.
+- Detail: [`docs/FRONTEND.md`](FRONTEND.md).
+
+## CORS
+
+- `config/cors.php` hanya mengizinkan origin development yang tercantum pada
+  `CORS_ALLOWED_ORIGINS` (default `http://localhost:3000`,
+  `http://127.0.0.1:3000`), dengan metode dan header terbatas.
+- Karena autentikasi memakai Bearer token (bukan cookie lintas situs),
+  `supports_credentials` dibiarkan `false`.

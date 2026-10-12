@@ -11,8 +11,8 @@ transaksi, pembayaran, hak akses, penerbitan tiket, dan check-in.
 | Backend | Laravel 13 (PHP 8.5) |
 | API | REST JSON, prefix `/api/v1`, autentikasi Sanctum (personal access token) |
 | Database | MySQL 8 |
-| Frontend | Next.js + Tailwind CSS (folder `frontend/`, dikerjakan pada fase lanjutan) |
-| Testing | PHPUnit, database SQLite in-memory |
+| Frontend | Next.js 16 + Tailwind CSS 4 (folder `frontend/`) |
+| Testing | PHPUnit (backend), Vitest + build + ESLint (frontend) |
 
 ## Peran pengguna
 
@@ -32,7 +32,7 @@ access token dengan header `Authorization: Bearer <token>`. Detail lengkap ada d
 - PHP 8.3+ dengan ekstensi `pdo_mysql`, `pdo_sqlite`, dan `sqlite3` aktif.
 - Composer 2.
 - MySQL 8 (atau MariaDB).
-- Node.js 20+ (untuk frontend, fase lanjutan).
+- Node.js 20+ (untuk frontend di `frontend/`).
 
 ## Setup pengembangan
 
@@ -94,14 +94,32 @@ Nilai berikut adalah konfigurasi awal proyek, bukan klaim tarif resmi yang telah
 Tarif dikelola admin dan disimpan sebagai snapshot pada setiap transaksi sehingga
 perubahan tarif tidak mengubah transaksi historis.
 
+## Frontend
+
+Frontend Next.js ada di `frontend/` dan menjangkau API lewat pola BFF: browser
+memanggil route handler Next.js, dan server Next.js memanggil Laravel dengan
+Bearer token. Token disimpan pada cookie HttpOnly dan tidak pernah sampai ke
+JavaScript browser (bukan `localStorage`).
+
+```bash
+cd frontend
+npm install
+copy .env.example .env.local     # Linux/macOS: cp .env.example .env.local
+npm run dev                      # http://localhost:3000, backend di :8000
+```
+
+Pemeriksaan frontend: `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build`.
+Detail arsitektur dan keputusan keamanan ada di [`docs/FRONTEND.md`](docs/FRONTEND.md).
+
 ## Dokumentasi
 
-- [`docs/API.md`](docs/API.md) — endpoint `/api/v1`, autentikasi, dan matriks akses.
+- [`docs/API.md`](docs/API.md) — endpoint `/api/v1`, autentikasi, CORS, dan matriks akses.
+- [`docs/FRONTEND.md`](docs/FRONTEND.md) — struktur frontend, env, dan penyimpanan token.
 - [`docs/SETUP.md`](docs/SETUP.md) — konfigurasi development yang dapat dijalankan ulang.
 - [`docs/DATABASE.md`](docs/DATABASE.md) — skema database, relasi, dan batasan.
 - [`docs/SECURITY.md`](docs/SECURITY.md) — kebijakan privasi NIK dan retensi data.
 
 ## Status pengembangan
 
-Dikerjakan bertahap per fase (audit → database → autentikasi → API & frontend →
+Dikerjakan bertahap per fase (audit → database → autentikasi → **integrasi API & frontend** →
 loket → pendaftaran online → barcode & check-in → dashboard & laporan → pengujian akhir).

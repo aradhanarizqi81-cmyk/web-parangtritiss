@@ -91,6 +91,17 @@ Respons tidak menyertakan identitas wisatawan/NIK.
 | `POST /auth/logout` | ✅ | ✅ | ✅ | ✅ | ⛔ 401 |
 | `GET /transactions/{id}` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ✅ semua | ⛔ 401 |
 
+## CORS
+
+`config/cors.php` membatasi akses lintas origin ke origin development pada
+variabel `CORS_ALLOWED_ORIGINS` (default `http://localhost:3000` dan
+`http://127.0.0.1:3000`). Metode yang diizinkan `GET`, `POST`, `OPTIONS`; header
+yang diizinkan `Content-Type`, `Accept`, `Authorization`, `X-Requested-With`.
+
+Frontend Next.js memakai pola BFF: browser memanggil route handler Next.js
+(same-origin) dan server Next.js yang memanggil API ini, sehingga token tidak
+pernah dikirim ke browser. Lihat [`docs/FRONTEND.md`](FRONTEND.md).
+
 ## Belum termasuk cakupan
 
 - Reset password dan verifikasi email **belum diimplementasikan**.

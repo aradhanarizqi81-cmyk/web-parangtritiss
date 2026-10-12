@@ -8,7 +8,7 @@ dijalankan ulang dan tidak menyimpan rahasia di source control.
 - PHP 8.3+ (proyek diuji pada PHP 8.5 NTS). Ekstensi wajib: `pdo_mysql`, `pdo_sqlite`, `sqlite3`.
 - Composer 2.
 - MySQL 8 / MariaDB (port default 3306).
-- Node.js 20+ (dipakai frontend pada fase lanjutan).
+- Node.js 20+ dan npm (frontend Next.js di `frontend/`).
 
 Verifikasi ekstensi:
 
@@ -53,11 +53,27 @@ memakai SQLite in-memory (lihat `phpunit.xml`).
 
 ## 4. Menjalankan aplikasi
 
+Backend:
+
 ```bash
-php artisan serve            # http://127.0.0.1:8000
+php artisan serve --host=127.0.0.1 --port=8000
 ```
 
-Endpoint API berada di bawah `/api/v1`.
+Endpoint API berada di bawah `/api/v1`. Origin frontend development yang boleh
+memanggil API diatur lewat `CORS_ALLOWED_ORIGINS` (lihat `.env.example`).
+
+Frontend (terminal terpisah):
+
+```bash
+cd frontend
+npm install
+copy .env.example .env.local     # Linux/macOS: cp .env.example .env.local
+npm run dev                      # http://localhost:3000
+```
+
+`frontend/.env.local` mengatur `API_BASE_URL` (default `http://127.0.0.1:8000`).
+Token tidak disimpan di variabel `NEXT_PUBLIC_`; lihat [`docs/FRONTEND.md`](FRONTEND.md)
+untuk keputusan penyimpanan token.
 
 ## 5. Pengujian
 
