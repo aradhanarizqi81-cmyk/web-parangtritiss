@@ -70,6 +70,31 @@ Metadata hanya memuat konteks (mis. tarif lama → baru) tanpa NIK mentah.
   ditegakkan di backend.
 - Detail: [`docs/FRONTEND.md`](FRONTEND.md).
 
+## Transaksi loket, pembayaran tunai, dan tiket (Fase 5)
+
+- Semua endpoint loket memerlukan autentikasi **dan** peran `cashier`/`admin`
+  (middleware `role`), lalu diotorisasi ulang per objek oleh `TransactionPolicy`
+  yang hanya menerima transaksi `source=counter`. `gate_staff` dan `visitor`
+  ditolak `403` walau sudah login.
+- **Total tidak dipercaya dari browser.** `client_total_amount` hanya
+  informasional; backend selalu menghitung ulang total dari tarif aktif di
+  database dan menyimpan snapshot tarif pada transaksi serta tiap baris kendaraan.
+- Transaksi, pengunjung, tiket, kendaraan, dan pembayaran disimpan dalam **satu
+  transaksi database** sehingga kegagalan tidak meninggalkan data parsial.
+- Konfirmasi tunai dijalankan dengan **row lock**; pembayaran sukses tidak dapat
+  dikonfirmasi dua kali (respons `409`), dan `payments.transaction_id` unik
+  menjadi jaring pengaman di level database.
+- Transaksi baru **tidak** dianggap lunas; status berpindah `pending → paid`
+  hanya setelah kasir mengonfirmasi uang benar-benar diterima.
+- NIK tetap terenkripsi; respons dan halaman hanya menampilkan `masked_nik`.
+  NIK tidak pernah masuk URL, barcode, log, atau metadata `audit_logs`.
+- Tiket individual memakai kode acak `TKT-YYYYMMDD-XXXXXXXX` (unik) tanpa data
+  pribadi. Pencetakan ulang tidak membuat tiket/transaksi baru dan dicatat di
+  `audit_logs`. Cetak hanya diizinkan setelah transaksi `paid`.
+- Pencatatan penting pada `audit_logs`: `counter_transaction.created`,
+  `payment_confirmed`, `tickets_printed`, dan `tickets_reprinted` (tanpa NIK).
+- Pemeriksaan tambahan: `tests/Feature/CounterTransactionTest.php`.
+
 ## CORS
 
 - `config/cors.php` hanya mengizinkan origin development yang tercantum pada

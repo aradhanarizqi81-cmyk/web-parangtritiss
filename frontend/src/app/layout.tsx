@@ -35,7 +35,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <SiteHeader />
         </Suspense>
         <main className="flex-1">{children}</main>
-        <footer className="border-t border-neutral-200 bg-white py-4 text-center text-sm text-neutral-500">
+        <footer className="border-t border-neutral-200 bg-white py-4 text-center text-sm text-neutral-500 print:hidden">
           Prototipe pengembangan — tarif bersifat konfigurasi awal, bukan tarif resmi.
         </footer>
       </body>

@@ -1,13 +1,13 @@
 import Link from "next/link";
 import LogoutButton from "@/components/logout-button";
 import { getCurrentUser } from "@/lib/auth/guard";
-import { roleLabel } from "@/lib/auth/roles";
+import { canUseCounter, roleLabel } from "@/lib/auth/roles";
 
 export default async function SiteHeader() {
   const user = await getCurrentUser();
 
   return (
-    <header className="border-b border-neutral-200 bg-white">
+    <header className="border-b border-neutral-200 bg-white print:hidden">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
         <Link href="/" className="font-semibold text-neutral-900">
           Pantai Parangtritis
@@ -15,6 +15,14 @@ export default async function SiteHeader() {
         <nav className="flex items-center gap-3 text-sm">
           {user ? (
             <>
+              {canUseCounter(user.role) ? (
+                <Link
+                  href="/counter"
+                  className="text-neutral-700 hover:text-neutral-900"
+                >
+                  Loket
+                </Link>
+              ) : null}
               <Link
                 href="/profile"
                 className="text-neutral-700 hover:text-neutral-900"

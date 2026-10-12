@@ -18,3 +18,11 @@ export function roleLabel(role: Role): string {
 export function isStaffRole(role: Role): boolean {
   return role !== "visitor";
 }
+
+/**
+ * Peran yang boleh membuka halaman loket. Ini hanya gerbang tampilan; backend
+ * tetap menolak peran lain lewat middleware `role:cashier,admin` + policy.
+ */
+export function canUseCounter(role: Role): boolean {
+  return role === "cashier" || role === "admin";
+}

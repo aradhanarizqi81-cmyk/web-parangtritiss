@@ -81,6 +81,69 @@ Menampilkan satu transaksi. Otorisasi ditegakkan `TransactionPolicy`
 
 Respons tidak menyertakan identitas wisatawan/NIK.
 
+## Endpoint loket (counter)
+
+Semua endpoint di bawah ini memerlukan `auth:sanctum` **dan** middleware
+`role:cashier,admin`, lalu diotorisasi ulang oleh `TransactionPolicy` yang hanya
+mengizinkan transaksi `source=counter`. `gate_staff` dan `visitor` selalu
+mendapat `403` meskipun sudah login.
+
+### `GET /api/v1/counter/tariffs`
+Tarif aktif untuk formulir loket (read-only).
+
+Respons `200`:
+
+```json
+{
+  "data": {
+    "visitor_tariff": { "code": "visitor", "name": "Wisatawan", "unit_tariff": 15000 },
+    "vehicle_types": [
+      { "id": 1, "code": "motorcycle", "name": "Motor", "unit_tariff": 2000 }
+    ]
+  }
+}
+```
+
+### `POST /api/v1/counter/transactions`
+Membuat transaksi loket beserta pengunjung, tiket individual, baris kendaraan,
+dan pembayaran tunai berstatus `pending`. **Backend menghitung ulang seluruh
+total dari tarif aktif di database**; `client_total_amount` hanya informasional
+dan diabaikan.
+
+| Field | Tipe | Wajib | Catatan |
+| --- | --- | --- | --- |
+| `visit_date` | date | ya | hari ini s/d +30 hari |
+| `visitors` | array | ya | 1–500 baris |
+| `visitors[].full_name` | string | ya | maks 255 |
+| `visitors[].nik` | string | ya | tepat 16 angka |
+| `vehicles` | array | tidak | maks 20 baris |
+| `vehicles[].vehicle_type_id` | int | ya | jenis harus **aktif**, tidak boleh duplikat |
+| `vehicles[].quantity` | int | ya | 1–65535 |
+| `client_total_amount` | int | tidak | diabaikan untuk perhitungan |
+
+Respons `201` memuat `message` dan `data` (bentuk sama seperti detail di bawah).
+Validasi gagal menghasilkan `422` dan **tidak meninggalkan data parsial**: seluruh
+penyimpanan berada dalam satu transaksi database.
+
+### `GET /api/v1/counter/transactions/{id}`
+Detail transaksi loket: kode, status, tarif snapshot, kasir, `visitors`
+(**hanya `masked_nik`**), `vehicles`, `payment`, dan `tickets`. `404` bila tidak
+ada; `403` bila bukan transaksi `counter`. Semua kasir dapat melihat transaksi
+loket (kebijakan loket bersama/serah-terima shift).
+
+### `POST /api/v1/counter/transactions/{id}/confirm-payment`
+Menandai uang tunai benar-benar diterima: `payment.status` `pending → success`,
+`paid_at` diisi, `received_by_user_id` diisi, dan `transactions.status`
+`pending → paid`. Dijalankan dalam transaksi database dengan row lock, sehingga
+percobaan konfirmasi kedua dijawab **`409`** tanpa membuat pembayaran baru.
+
+### `POST /api/v1/counter/transactions/{id}/print`
+Mencatat pencetakan atau pencetakan ulang tiket: mengisi `tickets.printed_at` dan
+`status printed` **tanpa** menambah tiket atau transaksi baru. `422` bila transaksi
+belum berstatus `paid`. Pencetakan ulang dibedakan di `audit_logs`
+(`counter_transaction.tickets_reprinted`). Barcode check-in gerbang belum aktif
+pada fase ini.
+
 ## Matriks akses
 
 | Endpoint | visitor | cashier | gate_staff | admin | anonim |
@@ -90,6 +153,11 @@ Respons tidak menyertakan identitas wisatawan/NIK.
 | `GET /auth/me` | ✅ | ✅ | ✅ | ✅ | ⛔ 401 |
 | `POST /auth/logout` | ✅ | ✅ | ✅ | ✅ | ⛔ 401 |
 | `GET /transactions/{id}` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ✅ semua | ⛔ 401 |
+| `GET /counter/tariffs` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
+| `POST /counter/transactions` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
+| `GET /counter/transactions/{id}` | ⛔ 403 | ✅ semua loket | ⛔ 403 | ✅ | ⛔ 401 |
+| `POST /counter/transactions/{id}/confirm-payment` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
+| `POST /counter/transactions/{id}/print` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
 
 ## CORS
 
@@ -105,5 +173,5 @@ pernah dikirim ke browser. Lihat [`docs/FRONTEND.md`](FRONTEND.md).
 ## Belum termasuk cakupan
 
 - Reset password dan verifikasi email **belum diimplementasikan**.
-- Booking online, simulasi pembayaran, transaksi loket, tiket, check-in,
-  dashboard, dan laporan dikerjakan pada fase berikutnya.
+- Booking online, simulasi pembayaran, barcode & check-in gerbang, dashboard, dan
+  laporan dikerjakan pada fase berikutnya.

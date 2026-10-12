@@ -10,7 +10,7 @@ import { SESSION_COOKIE_NAME } from "@/lib/api/config";
  * setiap request). Otorisasi sebenarnya tetap di backend: halaman /profile
  * memvalidasi token ke Laravel lewat getCurrentUser().
  */
-const PROTECTED_PATHS = ["/profile"];
+const PROTECTED_PATHS = ["/profile", "/counter"];
 
 function isProtected(pathname: string): boolean {
   return PROTECTED_PATHS.some(

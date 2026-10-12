@@ -9,6 +9,11 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable(['code', 'name', 'unit_tariff', 'active'])]
 class Tariff extends Model
 {
+    /**
+     * Code of the tariff row holding the per-visitor fare.
+     */
+    public const CODE_VISITOR = 'visitor';
+
     protected function casts(): array
     {
         return [

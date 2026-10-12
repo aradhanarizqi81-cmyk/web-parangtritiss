@@ -50,7 +50,9 @@ Satu baris untuk setiap anggota rombongan.
 
 ### `tickets`
 `transaction_id` (cascade), `visitor_id` (**unik**, cascade), `ticket_code` (unik),
-`status`, `printed_at`. Satu tiket per wisatawan; pencetakan ulang dicatat pada `audit_logs`.
+`status`, `printed_at`. Satu tiket per wisatawan; kode dibuat otomatis dengan
+format `TKT-YYYYMMDD-XXXXXXXX` (acak, tanpa data pribadi). Pencetakan ulang tidak
+membuat tiket baru dan dicatat pada `audit_logs`.
 
 ### `transaction_vehicles`
 `transaction_id` (cascade), `vehicle_type_id` (restrict), `quantity`,
@@ -58,9 +60,11 @@ Satu baris untuk setiap anggota rombongan.
 mencegah kendaraan sejenis tercatat ganda dalam satu transaksi.
 
 ### `payments`
-`transaction_id` (**unik**, cascade), `method`, `amount`, `status`, `reference`,
-`paid_at`. Unique `transaction_id` menjamin satu transaksi hanya memiliki satu
-catatan pembayaran sehingga pembayaran berhasil ganda tidak mungkin terjadi.
+`transaction_id` (**unik**, cascade), `method`, `amount`, `status`,
+`received_by_user_id` (nullable, `nullOnDelete` — petugas loket yang menerima
+uang), `reference`, `paid_at`. Unique `transaction_id` menjamin satu transaksi
+hanya memiliki satu catatan pembayaran sehingga pembayaran berhasil ganda tidak
+mungkin terjadi.
 
 ### `transaction_checkins`
 `transaction_id` (**unik**, cascade), `validated_by` (nullable, `nullOnDelete`),

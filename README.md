@@ -121,5 +121,10 @@ Detail arsitektur dan keputusan keamanan ada di [`docs/FRONTEND.md`](docs/FRONTE
 
 ## Status pengembangan
 
-Dikerjakan bertahap per fase (audit → database → autentikasi → **integrasi API & frontend** →
-loket → pendaftaran online → barcode & check-in → dashboard & laporan → pengujian akhir).
+Dikerjakan bertahap per fase (audit → database → autentikasi → integrasi API &
+frontend → **loket & tiket fisik** → pendaftaran online → barcode & check-in →
+dashboard & laporan → pengujian akhir).
+
+Alur loket (Fase 5) sudah aktif untuk peran `cashier` dan `admin`: buat transaksi
+tunai di loket, konfirmasi pembayaran, penerbitan tiket individual, dan pencatatan
+pencetakan. Booking online dan check-in barcode gerbang belum termasuk cakupan.
