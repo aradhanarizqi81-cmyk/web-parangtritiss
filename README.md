@@ -123,7 +123,7 @@ Detail arsitektur dan keputusan keamanan ada di [`docs/FRONTEND.md`](docs/FRONTE
 
 Dikerjakan bertahap per fase (audit → database → autentikasi → integrasi API &
 frontend → **loket & tiket fisik** → **booking online & simulasi pembayaran** →
-**barcode & check-in gerbang** → dashboard & laporan → pengujian akhir).
+**barcode & check-in gerbang** → **dashboard & laporan** → pengujian akhir).
 
 Alur loket (Fase 5) sudah aktif untuk peran `cashier` dan `admin`: buat transaksi
 tunai di loket, konfirmasi pembayaran, penerbitan tiket individual, dan pencatatan
@@ -139,3 +139,9 @@ Barcode & check-in gerbang (Fase 7) sudah aktif untuk peran `gate_staff` dan
 yang dipindai di halaman `/gate`. Check-in hanya berhasil untuk transaksi lunas
 pada hari kunjungan, mencatat jumlah wisatawan hadir, dan menolak pemindaian ulang
 tanpa membuat catatan baru.
+
+Dashboard & laporan (Fase 8) sudah aktif untuk peran `admin` di area `/admin`:
+ringkasan operasional, laporan kunjungan, transaksi/pendapatan, kendaraan, dan
+identitas (NIK tersamarkan), lengkap dengan filter rentang tanggal/sumber/status,
+paginasi server-side, dan ekspor CSV. Seluruh angka dihitung backend dari
+database; laporan tidak menampilkan NIK mentah.

@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/guard";
 import {
   canUseBooking,
   canUseCounter,
+  canUseDashboard,
   canUseGate,
   roleLabel,
 } from "@/lib/auth/roles";
@@ -20,6 +21,14 @@ export default async function SiteHeader() {
         <nav className="flex items-center gap-3 text-sm">
           {user ? (
             <>
+              {canUseDashboard(user.role) ? (
+                <Link
+                  href="/admin"
+                  className="text-neutral-700 hover:text-neutral-900"
+                >
+                  Dasbor
+                </Link>
+              ) : null}
               {canUseCounter(user.role) ? (
                 <Link
                   href="/counter"

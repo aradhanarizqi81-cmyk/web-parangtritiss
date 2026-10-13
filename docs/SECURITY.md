@@ -10,7 +10,9 @@ khususnya NIK wisatawan.
 - Kolom `nik` disembunyikan dari serialisasi model (`#[Hidden]`).
 - Untuk laporan umum, tampilkan NIK dalam bentuk tersamarkan melalui `Visitor::maskedNik()`
   (contoh `3201********0123`).
-- Akses penuh terhadap NIK dibatasi untuk peran yang berwenang setelah otorisasi backend.
+- Hingga saat ini **tidak ada** endpoint yang mengembalikan NIK mentah; laporan
+  identitas (Fase 8) pun hanya mengirim `masked_nik`. Mekanisme membuka NIK
+  penuh tidak dibangun dan harus melalui persetujuan eksplisit bila diperlukan.
 
 ## Kredensial dan token
 
@@ -161,6 +163,32 @@ Metadata hanya memuat konteks (mis. tarif lama → baru) tanpa NIK mentah.
   `barcode_token`.
 - Pencatatan keberhasilan pada `audit_logs`: `gate.checked_in` (tanpa token/NIK).
 - Pemeriksaan tambahan: `tests/Feature/GateCheckinTest.php`.
+
+## Dashboard & laporan admin (Fase 8)
+
+- Seluruh endpoint `/api/v1/admin/*` memerlukan autentikasi **dan** peran
+  `admin` (middleware `role:admin`), lalu diotorisasi ulang `TransactionPolicy`
+  (`viewDashboard`, `viewReports`, `viewIdentityReport`). Ini adalah akses
+  minimum yang diperlukan; peran lain ditolak `403`.
+- **Angka tidak dipercaya dari klien.** Dashboard dan laporan hanya menerima
+  filter (rentang tanggal, sumber, status); seluruh total, hitungan, dan
+  pendapatan dihitung backend lewat query agregat di database. Klien tidak
+  pernah mengirim atau menjumlahkan angka.
+- **Basis metrik eksplisit** agar tidak menyesatkan: transaksi berdasarkan
+  `created_at`, wisatawan terdaftar/pengunjung hadir berdasarkan `visit_date`,
+  dan pendapatan berdasarkan `payments.paid_at` (hanya `status=success`).
+  Transaksi tidak disamakan dengan wisatawan; pendaftar tidak disamakan dengan
+  pengunjung yang benar-benar check-in.
+- **NIK tetap terlindungi.** Laporan identitas hanya menyediakan `masked_nik`
+  (lihat `Visitor::maskedNik()`); NIK mentah tidak pernah dibangun oleh resource
+  maupun masuk ekspor. Mekanisme membuka NIK penuh sengaja **tidak** dibangun.
+- **Rentang dan volume dibatasi:** rentang maks 366 hari, `per_page` maks 100,
+  dan ekspor CSV dibatasi `report.max_export_rows` (default 10.000). Pelanggaran
+  dijawab `422`, sehingga laporan tidak dapat dipakai untuk menarik data dalam
+  jumlah tak terbatas.
+- Ekspor CSV diteruskan lewat route handler BFF same-origin; token sesi
+  HttpOnly tetap tidak terlihat oleh browser (lihat [`FRONTEND.md`](FRONTEND.md)).
+- Pemeriksaan tambahan: `tests/Feature/AdminReportTest.php`.
 
 ## CORS
 

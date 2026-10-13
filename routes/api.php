@@ -1,5 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\DashboardController;
+use App\Http\Controllers\Api\V1\Admin\Report\IdentityReportController;
+use App\Http\Controllers\Api\V1\Admin\Report\TransactionReportController;
+use App\Http\Controllers\Api\V1\Admin\Report\VehicleReportController;
+use App\Http\Controllers\Api\V1\Admin\Report\VisitReportController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\Booking\TariffController as BookingTariffController;
 use App\Http\Controllers\Api\V1\Booking\TransactionController as BookingController;
@@ -82,4 +87,31 @@ Route::middleware('auth:sanctum')->group(function (): void {
         ->group(function (): void {
             Route::post('/check-in', [GateCheckInController::class, 'store']);
         });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Admin (dashboard & laporan)
+    |--------------------------------------------------------------------------
+    |
+    | Role middleware gates the namespace to admins; TransactionPolicy adds a
+    | second, explicit ability check (viewDashboard/viewReports/
+    | viewIdentityReport). Every figure is computed server-side from the
+    | database; the client only supplies filters.
+    |
+    */
+    Route::middleware('role:admin')->prefix('admin')->group(function (): void {
+        Route::get('/dashboard', [DashboardController::class, 'show']);
+
+        Route::get('/reports/visits', [VisitReportController::class, 'index']);
+        Route::get('/reports/visits/export', [VisitReportController::class, 'export']);
+
+        Route::get('/reports/transactions', [TransactionReportController::class, 'index']);
+        Route::get('/reports/transactions/export', [TransactionReportController::class, 'export']);
+
+        Route::get('/reports/vehicles', [VehicleReportController::class, 'index']);
+        Route::get('/reports/vehicles/export', [VehicleReportController::class, 'export']);
+
+        Route::get('/reports/identities', [IdentityReportController::class, 'index']);
+        Route::get('/reports/identities/export', [IdentityReportController::class, 'export']);
+    });
 });

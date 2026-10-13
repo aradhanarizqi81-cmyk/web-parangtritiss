@@ -51,3 +51,12 @@ export function canUseGate(role: Role): boolean {
 export function isVisitor(role: Role): boolean {
   return role === "visitor";
 }
+
+/**
+ * Peran yang boleh membuka dashboard & laporan. Ini hanya gerbang tampilan;
+ * backend membatasi seluruh endpoint `/api/v1/admin/*` ke administrator lewat
+ * middleware `role:admin` + policy.
+ */
+export function canUseDashboard(role: Role): boolean {
+  return role === "admin";
+}

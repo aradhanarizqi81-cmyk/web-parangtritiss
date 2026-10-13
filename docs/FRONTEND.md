@@ -3,8 +3,8 @@
 Frontend berada di `frontend/` dan berkomunikasi dengan REST API Laravel
 (`/api/v1`). Cakupan saat ini: **integrasi autentikasi** (registrasi, login,
 profil, logout), **alur loket** (buat transaksi, konfirmasi tunai, tiket, cetak),
-**booking online** dengan **simulasi pembayaran** akademik, dan **validasi
-gerbang** (barcode + check-in).
+**booking online** dengan **simulasi pembayaran** akademik, **validasi gerbang**
+(barcode + check-in), serta **dashboard & laporan admin**.
 
 ## Stack dan struktur
 
@@ -32,9 +32,17 @@ frontend/
       api/bookings/[id]/simulate-payment/route.ts     # BFF: simulasi pembayaran
       api/bookings/[id]/print/route.ts                # BFF: catat cetak tiket
       api/gate/check-in/route.ts                      # BFF: validasi gerbang
+      api/admin/reports/{visits,transactions,
+        vehicles,identities}/export/route.ts          # BFF: unduh CSV laporan
       login/page.tsx                                  # form login (client)
       register/page.tsx                               # form registrasi (client)
       profile/page.tsx                                # profil (server, perlu sesi)
+      admin/layout.tsx                                # gerbang admin + sub-navigasi
+      admin/page.tsx                                  # dashboard ringkasan (server)
+      admin/laporan/kunjungan/page.tsx                # laporan kunjungan (server)
+      admin/laporan/transaksi/page.tsx                # laporan transaksi (server)
+      admin/laporan/kendaraan/page.tsx                # laporan kendaraan (server)
+      admin/laporan/identitas/page.tsx                # laporan identitas (server)
       counter/page.tsx                                # loket (server) + counter-workspace.tsx
       counter/transactions/[id]/page.tsx              # detail (server) + transaction-actions.tsx
       counter/transactions/[id]/print/page.tsx        # halaman cetak tiket
@@ -46,14 +54,17 @@ frontend/
       layout.tsx page.tsx globals.css
     components/       site-header.tsx, logout-button.tsx, field.tsx, barcode-svg.tsx
     components/counter/  status-badge.tsx, ticket-card.tsx, print-button.tsx
+    components/admin/    admin-nav.tsx, report-filter.tsx, pagination.tsx,
+                         export-link.tsx, ui.tsx
     lib/
-      api/            config.ts, types.ts, errors.ts, server.ts, client.ts, origin.ts, bff.ts
+      api/            config.ts, types.ts, errors.ts, server.ts, client.ts, origin.ts, bff.ts, download.ts
       auth/           session.ts, guard.ts, roles.ts
       pricing/        tariffs.ts (+ tariffs.test.ts)   # tarif + estimasi + formatRupiah
       barcode/        code128.ts (+ code128.test.ts)   # encoder Code128-B (SVG)
       counter/        types.ts, server.ts
       booking/        types.ts, server.ts, status.ts (+ status.test.ts)
       gate/           types.ts, status.ts (+ status.test.ts)
+      reports/        types.ts, period.ts (+ period.test.ts), format.ts, server.ts
     proxy.ts          # optimistic auth gate (Next 16 Proxy / middleware)
   .env.example
 ```
@@ -141,10 +152,11 @@ berbicara dengan server Next.js, bukan langsung ke Laravel.
 
 ## Tampilan berbasis peran
 
-Peran hanya memengaruhi tampilan (label peran, tautan "Loket", "Gerbang", catatan
-menu). **Seluruh otorisasi tetap ditegakkan di backend**; menyembunyikan elemen UI
-bukan kontrol keamanan. `canUseCounter()`, `canUseBooking()`, dan `canUseGate()`
-di `lib/auth/roles.ts` hanya gerbang tampilan; backend tetap menolak peran lain
+Peran hanya memengaruhi tampilan (label peran, tautan "Dasbor", "Loket",
+"Gerbang", catatan menu). **Seluruh otorisasi tetap ditegakkan di backend**;
+menyembunyikan elemen UI bukan kontrol keamanan. `canUseDashboard()`,
+`canUseCounter()`, `canUseBooking()`, dan `canUseGate()` di
+`lib/auth/roles.ts` hanya gerbang tampilan; backend tetap menolak peran lain
 lewat middleware `role:...` + policy.
 
 ## Alur loket (Fase 5)
@@ -229,6 +241,38 @@ lain lewat middleware `role:gate_staff,admin` + policy.
 
 Kontrak endpoint lengkap ada di [`docs/API.md`](API.md).
 
+## Alur dashboard & laporan (Fase 8)
+
+Seluruh area `/admin` hanya untuk **administrator**. `app/admin/layout.tsx`
+melakukan gerbang tampilan sekali (`getCurrentUser()` + `canUseDashboard()`),
+lalu setiap halaman memuat datanya sendiri. Backend tetap sumber kebenaran:
+middleware `role:admin` + policy menolak peran lain dengan `403`.
+
+1. Halaman adalah **server component** (`instant = false`) yang memanggil Laravel
+   langsung lewat `lib/reports/server.ts` memakai cookie HttpOnly — sama seperti
+   halaman loket/booking, tanpa route handler JSON tambahan.
+2. Filter (rentang tanggal, sumber, status, status pembayaran, kunjungan, dasar
+   tanggal, baris per halaman) diubah lewat `components/admin/report-filter.tsx`
+   (client) yang mendorong nilainya ke URL; halaman me-render ulang di server.
+   Rentang default awal bulan berjalan s/d hari ini pada zona `Asia/Jakarta`
+   (`lib/reports/period.ts`) dan selalu dikirim eksplisit ke backend.
+3. **Seluruh angka berasal dari backend.** Halaman hanya menampilkan
+   `summary`/`meta`/`data` yang diterima; tidak ada penjumlahan atau perhitungan
+   status di browser. Basis metrik ditampilkan pada kartu ("Basis: tanggal
+   kunjungan", "Pembayaran berhasil (waktu bayar)") agar transaksi tidak
+   tertukar dengan wisatawan maupun pendaftar dengan pengunjung hadir.
+4. Paginasi server-side memakai `meta` dari backend; `components/admin/pagination.tsx`
+   menyusun tautan halaman sambil mempertahankan filter.
+5. Tombol **Unduh CSV** menunjuk ke route handler BFF
+   `/api/admin/reports/{laporan}/export`. `lib/api/download.ts`
+   (`forwardDownload()`) menyisipkan `Authorization: Bearer` dari cookie,
+   meneruskan filter, dan mengalirkan berkas beserta header `Content-Type`/
+   `Content-Disposition` dari Laravel. Token tetap tidak terlihat browser.
+6. Laporan identitas **hanya** menampilkan `masked_nik`; NIK mentah tidak pernah
+   dikirim ke browser, termasuk pada ekspor CSV.
+
+Kontrak endpoint lengkap ada di [`docs/API.md`](API.md).
+
 ## Menjalankan
 
 Laravel (terminal 1) dan Next.js (terminal 2):
@@ -262,7 +306,8 @@ npm run build
 
 ## Belum termasuk cakupan
 
-Dashboard bisnis, laporan, pembatalan booking, dan pengelolaan pengguna tidak
-dibuat pada fase ini. Pembayaran memakai simulasi akademik, bukan gateway
-sungguhan. Pemindai barcode memakai perangkat USB keyboard-wedge standar; tidak
-ada dukungan kamera/QR khusus.
+Pembatalan booking, pengelolaan pengguna, dan ekspor berkas selain CSV
+(PDF/Excel) tidak dibuat pada fase ini. Pembayaran memakai simulasi akademik,
+bukan gateway sungguhan. Pemindai barcode memakai perangkat USB keyboard-wedge
+standar; tidak ada dukungan kamera/QR khusus. Laporan identitas hanya
+menyediakan NIK tersamarkan — tidak ada mekanisme membuka NIK penuh.

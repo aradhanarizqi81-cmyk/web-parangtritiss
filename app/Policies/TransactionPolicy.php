@@ -180,4 +180,41 @@ class TransactionPolicy
     {
         return $user->hasRole(Role::GateStaff, Role::Admin);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reporting abilities
+    |--------------------------------------------------------------------------
+    |
+    | Reports are read-only aggregates over transaction data, so they are not
+    | attached to a single transaction instance. Like the gate ability above,
+    | these are class-level abilities. Dashboard and operational/identity
+    | reports are administrative and limited to admins.
+    |
+    */
+
+    /**
+     * Administrative dashboard summary.
+     */
+    public function viewDashboard(User $user): bool
+    {
+        return $user->isAdmin();
+    }
+
+    /**
+     * Operational reports (visits, transactions/revenue, vehicles).
+     */
+    public function viewReports(User $user): bool
+    {
+        return $user->isAdmin();
+    }
+
+    /**
+     * Visitor identity report. Kept as its own ability because it is the only
+     * report that surfaces visitor personal data (masked NIK only).
+     */
+    public function viewIdentityReport(User $user): bool
+    {
+        return $user->isAdmin();
+    }
 }

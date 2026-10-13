@@ -273,6 +273,86 @@ Respons sukses `201` (tanpa NIK maupun `barcode_token`):
 Check-in **tidak pernah** mengubah nominal pembayaran atau menambah pendapatan.
 Aksi sukses dicatat di `audit_logs` sebagai `gate.checked_in` tanpa token/NIK.
 
+## Endpoint admin (dashboard & laporan)
+
+Semua endpoint di bawah memerlukan `auth:sanctum` **dan** middleware
+`role:admin`, lalu diotorisasi ulang `TransactionPolicy` (`viewDashboard`,
+`viewReports`, `viewIdentityReport`). `visitor`, `cashier`, `gate_staff` selalu
+`403`; anonim `401`.
+
+**Seluruh angka dihitung backend dari database** menggunakan query agregat;
+klien tidak pernah mengirim atau menjumlahkan total, status, atau hitungan. Tiap
+metrik memakai basis tanggal yang eksplisit:
+
+| Metrik | Basis |
+| --- | --- |
+| Jumlah transaksi & sebaran sumber/status | `transactions.created_at` |
+| Wisatawan terdaftar & pengunjung hadir | `transactions.visit_date` |
+| Kendaraan | `transactions.visit_date` (snapshot `transaction_vehicles`) |
+| Pendapatan | `payments.paid_at`, **hanya** `payments.status = success` |
+
+Konsekuensinya transaksi **tidak** disamakan dengan wisatawan, dan wisatawan
+terdaftar **tidak** disamakan dengan pengunjung yang benar-benar hadir
+(`transaction_checkins`).
+
+### Parameter bersama
+
+| Parameter | Tipe | Default | Catatan |
+| --- | --- | --- | --- |
+| `date_from` | date | awal bulan berjalan | zona `VISIT_TIMEZONE` |
+| `date_to` | date | hari ini | harus `>= date_from`; rentang maks **366 hari** |
+| `source` | enum | — | `online`/`counter` |
+| `status` | enum | — | `pending`/`paid`/`checked_in`/`cancelled` |
+| `payment_status` | enum | — | `pending`/`success`/`failed` |
+| `checked_in` | bool | — | `true`/`false` (laporan kunjungan) |
+| `date_basis` | enum | `created_at` | `created_at`/`visit_date`/`paid_at` (laporan transaksi) |
+| `page` | int | 1 | paginasi server-side |
+| `per_page` | int | 25 | maks **100** |
+
+Periode default dihitung dalam `Asia/Jakarta` (config `visit.timezone`).
+Pelanggaran rentang/per_page dijawab `422`.
+
+### `GET /api/v1/admin/dashboard`
+Ringkasan operasional untuk satu periode (bukan laporan per baris).
+
+```json
+{
+  "data": {
+    "period": { "date_from": "2026-10-01", "date_to": "2026-10-14", "timezone": "Asia/Jakarta" },
+    "transactions": { "total": 12, "by_source": { "online": 7, "counter": 5 }, "by_status": { "pending": 2, "paid": 6, "checked_in": 4, "cancelled": 0 }, "basis": "created_at" },
+    "visitors": { "registered": 30, "checked_in": 18, "checked_in_transactions": 5, "basis": "visit_date" },
+    "revenue": { "total": 480000, "currency": "IDR", "by_source": { "online": 300000, "counter": 180000 }, "basis": "paid_at" },
+    "vehicles": [ { "code": "motorcycle", "name": "Motor", "quantity": 8 } ]
+  }
+}
+```
+
+### `GET /api/v1/admin/reports/visits`
+Satu baris per transaksi pada `visit_date`, dengan jumlah **terdaftar** dan
+jumlah **hadir** dipisah. Respons memuat `summary` (`transactions`,
+`registered_visitors`, `checked_in_visitors`) dan `meta` paginasi.
+
+### `GET /api/v1/admin/reports/transactions`
+Satu baris per transaksi. Memuat `transaction_date`, `visit_date`, status
+pembayaran, dan `summary.revenue` (`total`, `basis` = `paid_at`). `date_basis`
+memilih kolom yang dipakai menyaring rentang.
+
+### `GET /api/v1/admin/reports/vehicles`
+Rekap per jenis kendaraan. Semua jenis tetap muncul (bernilai nol bila kosong),
+beserta `summary` (`quantity`, `subtotal`). Tidak berpaginasi (jumlah jenis
+tetap).
+
+### `GET /api/v1/admin/reports/identities`
+Baris identitas wisatawan. **Hanya `masked_nik`** (mis. `3201********1234`);
+NIK mentah tidak pernah dikembalikan. Ability `viewIdentityReport` dipisahkan
+karena ini satu-satunya laporan yang menyentuh data pribadi.
+
+### `GET /api/v1/admin/reports/{laporan}/export`
+Mengunduh CSV (`Content-Type: text/csv`, `Content-Disposition: attachment`)
+dengan filter yang sama, **tanpa paginasi**. Jumlah baris dibatasi
+`config('report.max_export_rows')` (default **10.000**); melebihi batas dijawab
+`422`. Ekspor identitas juga hanya memuat NIK tersamarkan.
+
 ## Matriks akses
 
 | Endpoint | visitor | cashier | gate_staff | admin | anonim |
@@ -294,6 +374,9 @@ Aksi sukses dicatat di `audit_logs` sebagai `gate.checked_in` tanpa token/NIK.
 | `POST /bookings/{id}/simulate-payment` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ⛔ 403 | ⛔ 401 |
 | `POST /bookings/{id}/print` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ✅ online | ⛔ 401 |
 | `POST /gate/check-in` | ⛔ 403 | ⛔ 403 | ✅ | ✅ | ⛔ 401 |
+| `GET /admin/dashboard` | ⛔ 403 | ⛔ 403 | ⛔ 403 | ✅ | ⛔ 401 |
+| `GET /admin/reports/*` | ⛔ 403 | ⛔ 403 | ⛔ 403 | ✅ | ⛔ 401 |
+| `GET /admin/reports/*/export` | ⛔ 403 | ⛔ 403 | ⛔ 403 | ✅ | ⛔ 401 |
 
 ## CORS
 
@@ -310,5 +393,7 @@ pernah dikirim ke browser. Lihat [`docs/FRONTEND.md`](FRONTEND.md).
 
 - Reset password dan verifikasi email **belum diimplementasikan**.
 - Pembayaran memakai **simulasi akademik**, bukan gateway sungguhan.
-- Dashboard bisnis, laporan, pembatalan booking (`cancelled`), dan pengelolaan
-  pengguna dikerjakan pada fase berikutnya.
+- Pembatalan booking (`cancelled`), pengelolaan pengguna, dan laporan berkas
+  (PDF/Excel) dikerjakan pada fase berikutnya.
+- Laporan identitas hanya menyediakan mekanisme **NIK tersamarkan**; mekanisme
+  membuka NIK penuh tidak dibangun.

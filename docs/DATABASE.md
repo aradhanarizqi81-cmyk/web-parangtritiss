@@ -107,6 +107,24 @@ Check-in tidak mengubah nominal pembayaran.
 Digunakan untuk mencatat perubahan tarif, tindakan administratif, dan pencetakan
 ulang tiket. **Tidak boleh** memuat password, token autentikasi, atau NIK mentah.
 
+## Indeks untuk laporan (Fase 8)
+
+Dashboard & laporan hanya menambah indeks — tidak ada tabel atau kolom baru:
+
+- `transactions.created_at` — menyaring jumlah transaksi berdasarkan waktu
+  transaksi dibuat.
+- `payments (status, paid_at)` — rekap pendapatan pembayaran `success`.
+
+Indeks lain yang sudah ada dan terpakai: `transactions.visit_date`,
+`transactions.status`, `transactions (visit_date, status)`, dan `payments.status`.
+
+Penyaringan `visit_date` memakai interval setengah terbuka
+`>= date_from AND < date_to + 1 hari` (bukan `BETWEEN` dua tanggal). Alasannya:
+kolom bertipe `date` ditulis Eloquent sebagai `Y-m-d H:i:s` pada SQLite dan
+dipotong menjadi `Y-m-d` oleh MySQL, sehingga `BETWEEN` gagal di SQLite.
+Interval setengah terbuka memberi hasil identik di kedua driver dan tetap
+memakai indeks (tanpa fungsi pada kolom).
+
 ## Alur relasi
 
 ```
