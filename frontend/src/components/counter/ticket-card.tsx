@@ -1,3 +1,4 @@
+import BarcodeSvg from "@/components/barcode-svg";
 import StatusBadge from "./status-badge";
 import { formatRupiah } from "@/lib/pricing/tariffs";
 
@@ -17,6 +18,7 @@ export type PrintableTicket = {
 
 export type PrintableTransaction = {
   transaction_code: string;
+  barcode_token: string;
   visit_date: string | null;
   total_amount: number;
   payment: { status_label: string } | null;
@@ -76,9 +78,21 @@ export default function TicketCard({
         </div>
       </dl>
 
+      <div className="mt-4 border-t border-dashed border-neutral-200 pt-3">
+        <p className="text-xs uppercase tracking-wide text-neutral-500">
+          Barcode gerbang
+        </p>
+        <div className="mt-2">
+          <BarcodeSvg value={transaction.barcode_token} />
+        </div>
+        <p className="mt-1 break-all font-mono text-[11px] text-neutral-500">
+          {transaction.barcode_token}
+        </p>
+      </div>
+
       <p className="mt-3 border-t border-dashed border-neutral-200 pt-2 text-[11px] text-neutral-500">
-        Pembayaran: {transaction.payment?.status_label ?? "—"}. Barcode gerbang
-        belum aktif pada fase ini.
+        Pembayaran: {transaction.payment?.status_label ?? "—"}. Satu barcode
+        mewakili satu transaksi/rombongan.
       </p>
     </article>
   );

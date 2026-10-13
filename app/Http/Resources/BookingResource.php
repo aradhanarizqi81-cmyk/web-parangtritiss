@@ -13,8 +13,12 @@ use Illuminate\Http\Resources\Json\JsonResource;
  *
  * Exposes the booking summary, visitor display names with **masked NIK only**,
  * vehicle lines, payment state (including the server-issued simulation
- * reference) and the individual tickets once issued. Never returns a raw NIK,
- * the transaction barcode token, or any credential.
+ * reference) and the individual tickets once issued. Never returns a raw NIK or
+ * any credential.
+ *
+ * `barcode_token` is included on purpose: it is the opaque group barcode that
+ * the owner (and an admin) prints on the tickets and that the gate scans. It
+ * carries no personal data.
  *
  * @mixin \App\Models\Transaction
  */
@@ -28,6 +32,9 @@ class BookingResource extends JsonResource
         return [
             'id' => $this->id,
             'transaction_code' => $this->transaction_code,
+            // Opaque group barcode printed on the tickets and scanned at the
+            // gate. Carries no personal data.
+            'barcode_token' => $this->barcode_token,
             'source' => $this->source->value,
             'source_label' => $this->source->label(),
             'status' => $this->status->value,

@@ -123,7 +123,7 @@ Detail arsitektur dan keputusan keamanan ada di [`docs/FRONTEND.md`](docs/FRONTE
 
 Dikerjakan bertahap per fase (audit → database → autentikasi → integrasi API &
 frontend → **loket & tiket fisik** → **booking online & simulasi pembayaran** →
-barcode & check-in → dashboard & laporan → pengujian akhir).
+**barcode & check-in gerbang** → dashboard & laporan → pengujian akhir).
 
 Alur loket (Fase 5) sudah aktif untuk peran `cashier` dan `admin`: buat transaksi
 tunai di loket, konfirmasi pembayaran, penerbitan tiket individual, dan pencatatan
@@ -132,5 +132,10 @@ pencetakan.
 Booking online (Fase 6) sudah aktif untuk peran `visitor` (dan `admin` sebagai
 pembaca): wisatawan membuat booking, lalu menyelesaikan **simulasi pembayaran
 akademik** (bukan gateway sungguhan) di halaman detail; tiket diterbitkan hanya
-setelah pembayaran berhasil dan dapat dicetak setelah lunas. Check-in barcode
-gerbang belum termasuk cakupan.
+setelah pembayaran berhasil dan dapat dicetak setelah lunas.
+
+Barcode & check-in gerbang (Fase 7) sudah aktif untuk peran `gate_staff` dan
+`admin`: setiap tiket memuat barcode grup Code128 (dari `transactions.barcode_token`)
+yang dipindai di halaman `/gate`. Check-in hanya berhasil untuk transaksi lunas
+pada hari kunjungan, mencatat jumlah wisatawan hadir, dan menolak pemindaian ulang
+tanpa membuat catatan baru.

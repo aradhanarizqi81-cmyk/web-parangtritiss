@@ -52,7 +52,8 @@ Satu baris untuk setiap anggota rombongan.
 `transaction_id` (cascade), `visitor_id` (**unik**, cascade), `ticket_code` (unik),
 `status`, `printed_at`. Satu tiket per wisatawan; kode dibuat otomatis dengan
 format `TKT-YYYYMMDD-XXXXXXXX` (acak, tanpa data pribadi). Pencetakan ulang tidak
-membuat tiket baru dan dicatat pada `audit_logs`.
+membuat tiket baru dan dicatat pada `audit_logs`. Saat check-in gerbang berhasil,
+seluruh tiket transaksi ditandai `used`.
 
 ### `transaction_vehicles`
 `transaction_id` (cascade), `vehicle_type_id` (restrict), `quantity`,
@@ -81,7 +82,25 @@ pembayaran `success` (yang mengisi `payments.paid_at` dan mengubah
 ### `transaction_checkins`
 `transaction_id` (**unik**, cascade), `validated_by` (nullable, `nullOnDelete`),
 `checked_in_at`, `visitor_count_checked_in`. Unique `transaction_id` memastikan
-satu transaksi hanya memiliki satu catatan check-in (dilindungi dari pemindaian bersamaan).
+satu transaksi hanya memiliki satu catatan check-in (dilindungi dari pemindaian
+bersamaan).
+
+### Alur check-in gerbang
+Barcode grup pada tiket adalah `transactions.barcode_token` (opaque, unik, 40
+karakter acak, tanpa data pribadi). Satu barcode mewakili satu
+transaksi/rombongan. Saat dipindai, server:
+
+1. mengunci baris transaksi berdasarkan `barcode_token` (`lockForUpdate`);
+2. memverifikasi pembayaran `success` dan status `paid`;
+3. memverifikasi tanggal kunjungan sama dengan hari ini pada zona
+   `config('visit.timezone')` (`VISIT_TIMEZONE`, default `Asia/Jakarta`);
+4. membuat **satu** baris `transaction_checkins`, menandai seluruh tiket `used`,
+   lalu mengubah `transactions.status` menjadi `checked_in`.
+
+Semuanya dalam satu transaksi database, sehingga kegagalan tidak meninggalkan
+status atau catatan check-in yang tidak konsisten. Pemeriksaan ganda dijaga oleh
+row lock (MySQL/InnoDB) dan unique `transaction_checkins.transaction_id`.
+Check-in tidak mengubah nominal pembayaran.
 
 ### `audit_logs`
 `user_id` (nullable), `action`, `entity_type`, `entity_id`, `metadata` (JSON).

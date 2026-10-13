@@ -37,6 +37,15 @@ export function canUseBooking(role: Role): boolean {
 }
 
 /**
+ * Peran yang boleh melakukan validasi di gerbang. Ini hanya gerbang tampilan;
+ * backend menegakkan otorisasi lewat middleware `role:gate_staff,admin` dan
+ * policy.
+ */
+export function canUseGate(role: Role): boolean {
+  return role === "gate_staff" || role === "admin";
+}
+
+/**
  * Hanya wisatawan yang boleh membuat atau membayar booking.
  */
 export function isVisitor(role: Role): boolean {

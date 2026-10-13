@@ -160,4 +160,24 @@ class TransactionPolicy
     {
         return $this->viewBooking($user, $transaction);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gate (gerbang) abilities
+    |--------------------------------------------------------------------------
+    |
+    | The transaction is resolved from the scanned barcode inside the service,
+    | so this is a class-level ability: it answers "may this user work the
+    | gate at all?". Visitor and cashier accounts are denied even though they
+    | are authenticated.
+    |
+    */
+
+    /**
+     * Only gate staff and admins may validate an arrival at the gate.
+     */
+    public function checkInGate(User $user): bool
+    {
+        return $user->hasRole(Role::GateStaff, Role::Admin);
+    }
 }

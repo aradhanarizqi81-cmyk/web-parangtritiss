@@ -53,6 +53,8 @@ export type BookingPayment = {
 export type BookingTransaction = {
   id: number;
   transaction_code: string;
+  // Token barcode grup untuk gerbang; tanpa data pribadi.
+  barcode_token: string;
   source: string;
   source_label: string;
   status: string;

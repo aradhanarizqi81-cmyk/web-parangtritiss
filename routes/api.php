@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\Booking\TariffController as BookingTariffControl
 use App\Http\Controllers\Api\V1\Booking\TransactionController as BookingController;
 use App\Http\Controllers\Api\V1\Counter\TariffController as CounterTariffController;
 use App\Http\Controllers\Api\V1\Counter\TransactionController as CounterTransactionController;
+use App\Http\Controllers\Api\V1\Gate\CheckInController as GateCheckInController;
 use App\Http\Controllers\Api\V1\TransactionController;
 use Illuminate\Support\Facades\Route;
 
@@ -65,4 +66,20 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/bookings/{transaction}/simulate-payment', [BookingController::class, 'simulatePayment']);
         Route::post('/bookings/{transaction}/print', [BookingController::class, 'printTickets']);
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gate (gerbang)
+    |--------------------------------------------------------------------------
+    |
+    | Role middleware gates the namespace to gate staff and admins. The scanned
+    | barcode token is resolved server-side; the client never sends a
+    | transaction id or any payment figure. Throttling limits barcode guessing.
+    |
+    */
+    Route::middleware(['role:gate_staff,admin', 'throttle:gate-checkin'])
+        ->prefix('gate')
+        ->group(function (): void {
+            Route::post('/check-in', [GateCheckInController::class, 'store']);
+        });
 });

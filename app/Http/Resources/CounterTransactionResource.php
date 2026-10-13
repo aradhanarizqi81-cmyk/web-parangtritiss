@@ -15,6 +15,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * masked NIK only, vehicle lines, payment state, and ticket codes — while
  * never returning a raw NIK or any credential.
  *
+ * `barcode_token` is included on purpose: it is the opaque group barcode that
+ * the cashier prints on the tickets and that the gate scans. It carries no
+ * personal data.
+ *
  * @mixin \App\Models\Transaction
  */
 class CounterTransactionResource extends JsonResource
@@ -27,6 +31,9 @@ class CounterTransactionResource extends JsonResource
         return [
             'id' => $this->id,
             'transaction_code' => $this->transaction_code,
+            // Opaque group barcode printed on the tickets and scanned at the
+            // gate. Carries no personal data.
+            'barcode_token' => $this->barcode_token,
             'source' => $this->source->value,
             'source_label' => $this->source->label(),
             'status' => $this->status->value,

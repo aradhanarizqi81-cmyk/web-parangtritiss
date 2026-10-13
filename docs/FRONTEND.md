@@ -3,7 +3,8 @@
 Frontend berada di `frontend/` dan berkomunikasi dengan REST API Laravel
 (`/api/v1`). Cakupan saat ini: **integrasi autentikasi** (registrasi, login,
 profil, logout), **alur loket** (buat transaksi, konfirmasi tunai, tiket, cetak),
-dan **booking online** dengan **simulasi pembayaran** akademik.
+**booking online** dengan **simulasi pembayaran** akademik, dan **validasi
+gerbang** (barcode + check-in).
 
 ## Stack dan struktur
 
@@ -30,6 +31,7 @@ frontend/
       api/bookings/[id]/route.ts                      # BFF: detail booking
       api/bookings/[id]/simulate-payment/route.ts     # BFF: simulasi pembayaran
       api/bookings/[id]/print/route.ts                # BFF: catat cetak tiket
+      api/gate/check-in/route.ts                      # BFF: validasi gerbang
       login/page.tsx                                  # form login (client)
       register/page.tsx                               # form registrasi (client)
       profile/page.tsx                                # profil (server, perlu sesi)
@@ -40,15 +42,18 @@ frontend/
       booking/history/page.tsx                        # riwayat booking (server)
       booking/[id]/page.tsx                           # detail (server) + payment-simulation.tsx
       booking/[id]/print/page.tsx                     # halaman cetak tiket booking
+      gate/page.tsx                                   # gerbang (server) + gate-checkin-form.tsx
       layout.tsx page.tsx globals.css
-    components/       site-header.tsx, logout-button.tsx, field.tsx
+    components/       site-header.tsx, logout-button.tsx, field.tsx, barcode-svg.tsx
     components/counter/  status-badge.tsx, ticket-card.tsx, print-button.tsx
     lib/
       api/            config.ts, types.ts, errors.ts, server.ts, client.ts, origin.ts, bff.ts
       auth/           session.ts, guard.ts, roles.ts
       pricing/        tariffs.ts (+ tariffs.test.ts)   # tarif + estimasi + formatRupiah
+      barcode/        code128.ts (+ code128.test.ts)   # encoder Code128-B (SVG)
       counter/        types.ts, server.ts
       booking/        types.ts, server.ts, status.ts (+ status.test.ts)
+      gate/           types.ts, status.ts (+ status.test.ts)
     proxy.ts          # optimistic auth gate (Next 16 Proxy / middleware)
   .env.example
 ```
@@ -136,10 +141,11 @@ berbicara dengan server Next.js, bukan langsung ke Laravel.
 
 ## Tampilan berbasis peran
 
-Peran hanya memengaruhi tampilan (label peran, tautan "Loket", catatan menu).
-**Seluruh otorisasi tetap ditegakkan di backend**; menyembunyikan elemen UI bukan
-kontrol keamanan. `canUseCounter()` di `lib/auth/roles.ts` hanya gerbang tampilan,
-backend tetap menolak peran lain lewat middleware `role:cashier,admin` + policy.
+Peran hanya memengaruhi tampilan (label peran, tautan "Loket", "Gerbang", catatan
+menu). **Seluruh otorisasi tetap ditegakkan di backend**; menyembunyikan elemen UI
+bukan kontrol keamanan. `canUseCounter()`, `canUseBooking()`, dan `canUseGate()`
+di `lib/auth/roles.ts` hanya gerbang tampilan; backend tetap menolak peran lain
+lewat middleware `role:...` + policy.
 
 ## Alur loket (Fase 5)
 
@@ -198,6 +204,31 @@ lewat middleware `role:visitor,admin` + policy.
 Simulasi pembayaran adalah **akademik**, bukan gateway sungguhan; lihat
 [`docs/SECURITY.md`](SECURITY.md).
 
+## Alur gerbang (Fase 7)
+
+Halaman `/gate` hanya untuk `gate_staff` dan `admin`; `visitor`, `cashier`, dan
+anonim ditolak. `canUseGate()` hanya gerbang tampilan — backend menolak peran
+lain lewat middleware `role:gate_staff,admin` + policy.
+
+1. Halaman cetak tiket (`/counter/transactions/[id]/print` dan
+   `/booking/[id]/print`) merender **barcode Code128-B** dari `barcode_token`
+   transaksi lewat `components/barcode-svg.tsx` dan `lib/barcode/code128.ts`.
+   Token ditampilkan juga sebagai teks agar bisa diketik manual bila perlu.
+2. `gate-checkin-form.tsx` menyediakan satu kolom teks yang siap menerima
+   **pemindai barcode USB** (bertindak seperti keyboard dan menekan Enter),
+   sehingga submit berjalan otomatis. Tersedia juga tombol "Validasi" untuk
+   input manual.
+3. Form memanggil `POST /api/gate/check-in` (BFF) dengan **hanya**
+   `barcode_token`. Token tidak pernah disimpan di `localStorage`/
+   `sessionStorage`, tidak dimasukkan ke URL, dan dibersihkan setiap kali
+   percobaan selesai; fokus otomatis kembali ke kolom.
+4. Hasil ditampilkan jelas lewat `gateTone()` di `lib/gate/status.ts`: berhasil
+   (hijau, menampilkan kode transaksi, sumber, **jumlah hadir**, tanggal, waktu,
+   petugas), sudah pernah check-in (kuning, `409`), atau ditolak (merah) dengan
+   alasan aman dari backend. Backend tetap sumber kebenaran status.
+
+Kontrak endpoint lengkap ada di [`docs/API.md`](API.md).
+
 ## Menjalankan
 
 Laravel (terminal 1) dan Next.js (terminal 2):
@@ -231,6 +262,7 @@ npm run build
 
 ## Belum termasuk cakupan
 
-Barcode & check-in gerbang, dashboard bisnis, laporan, pembatalan booking, dan
-pengelolaan pengguna tidak dibuat pada fase ini. Pembayaran memakai simulasi
-akademik, bukan gateway sungguhan.
+Dashboard bisnis, laporan, pembatalan booking, dan pengelolaan pengguna tidak
+dibuat pada fase ini. Pembayaran memakai simulasi akademik, bukan gateway
+sungguhan. Pemindai barcode memakai perangkat USB keyboard-wedge standar; tidak
+ada dukungan kamera/QR khusus.

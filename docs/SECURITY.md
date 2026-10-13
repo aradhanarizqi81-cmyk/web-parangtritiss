@@ -128,6 +128,40 @@ Metadata hanya memuat konteks (mis. tarif lama → baru) tanpa NIK mentah.
   `booking.tickets_printed`, dan `booking.tickets_reprinted`.
 - Pemeriksaan tambahan: `tests/Feature/BookingTest.php`.
 
+## Barcode dan check-in gerbang (Fase 7)
+
+- Endpoint gerbang memerlukan autentikasi **dan** peran `gate_staff`/`admin`
+  (middleware `role`), lalu diotorisasi ulang `TransactionPolicy` lewat ability
+  `checkInGate`. `visitor` dan `cashier` ditolak `403` walau sudah login.
+- **Body check-in hanya memuat `barcode_token`.** Transaksi, status pembayaran,
+  jumlah wisatawan, dan petugas divalidasi server dari database dan sesi; klien
+  tidak dapat mengirim `transaction_id`, nominal, jumlah hadir, atau status
+  pembayaran.
+- Barcode adalah `transactions.barcode_token`: string acak 40 karakter (≈238
+  bit), unik, dan **tanpa data pribadi**. NIK tidak pernah masuk barcode, URL,
+  log, respons, atau metadata `audit_logs`.
+- Token tidak dianggap rahasia autentikasi; ia hanya penanda grup. Namun
+  endpoint check-in tetap dibatasi rate limit (`throttle:gate-checkin`,
+  120/menit per petugas + IP) sebagai pertahanan berlapis terhadap percobaan
+  menebak token.
+- **Validasi berlapis:** pembayaran harus `success`, status harus `paid`,
+  tanggal kunjungan harus sama dengan hari ini (zona `VISIT_TIMEZONE`, default
+  `Asia/Jakarta`), dan jumlah pengunjung harus konsisten dengan data transaksi.
+  Barcode tak dikenal dijawab `404` **tanpa** membocorkan detail transaksi.
+- **Anti check-in ganda:** transaksi dikunci dengan `lockForUpdate` (MySQL/InnoDB)
+  dan unique `transaction_checkins.transaction_id` menjamin tepat satu catatan
+  check-in meski dipindai bersamaan. Pemindaian ulang dijawab `409` tanpa
+  membuat catatan baru.
+- **Atomik dan tanpa efek samping finansial:** membuat catatan check-in, menandai
+  tiket `used`, dan mengubah status menjadi `checked_in` terjadi dalam satu
+  transaksi database; `checked_in` diset hanya setelah catatan tersimpan.
+  Check-in **tidak pernah** mengubah nominal pembayaran atau menambah pendapatan.
+- Respons check-in hanya memuat kode transaksi, sumber, status, tanggal
+  kunjungan, jumlah hadir, waktu, dan nama petugas — tanpa NIK maupun
+  `barcode_token`.
+- Pencatatan keberhasilan pada `audit_logs`: `gate.checked_in` (tanpa token/NIK).
+- Pemeriksaan tambahan: `tests/Feature/GateCheckinTest.php`.
+
 ## CORS
 
 - `config/cors.php` hanya mengizinkan origin development yang tercantum pada

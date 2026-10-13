@@ -126,10 +126,11 @@ Validasi gagal menghasilkan `422` dan **tidak meninggalkan data parsial**: selur
 penyimpanan berada dalam satu transaksi database.
 
 ### `GET /api/v1/counter/transactions/{id}`
-Detail transaksi loket: kode, status, tarif snapshot, kasir, `visitors`
-(**hanya `masked_nik`**), `vehicles`, `payment`, dan `tickets`. `404` bila tidak
-ada; `403` bila bukan transaksi `counter`. Semua kasir dapat melihat transaksi
-loket (kebijakan loket bersama/serah-terima shift).
+Detail transaksi loket: kode, `barcode_token` (barcode grup untuk gerbang),
+status, tarif snapshot, kasir, `visitors` (**hanya `masked_nik`**), `vehicles`,
+`payment`, dan `tickets`. `404` bila tidak ada; `403` bila bukan transaksi
+`counter`. Semua kasir dapat melihat transaksi loket (kebijakan loket
+bersama/serah-terima shift).
 
 ### `POST /api/v1/counter/transactions/{id}/confirm-payment`
 Menandai uang tunai benar-benar diterima: `payment.status` `pending → success`,
@@ -141,8 +142,8 @@ percobaan konfirmasi kedua dijawab **`409`** tanpa membuat pembayaran baru.
 Mencatat pencetakan atau pencetakan ulang tiket: mengisi `tickets.printed_at` dan
 `status printed` **tanpa** menambah tiket atau transaksi baru. `422` bila transaksi
 belum berstatus `paid`. Pencetakan ulang dibedakan di `audit_logs`
-(`counter_transaction.tickets_reprinted`). Barcode check-in gerbang belum aktif
-pada fase ini.
+(`counter_transaction.tickets_reprinted`). Detail transaksi loket menyertakan
+`barcode_token` yang dirender sebagai barcode Code128 pada tiket.
 
 ## Endpoint booking online
 
@@ -190,9 +191,9 @@ pembayaran) — tanpa identitas, kendaraan, atau tiket.
 
 ### `GET /api/v1/bookings/{id}`
 Detail booking `online`. `403` bila bukan pemilik (dan bukan admin); `404` bila
-tidak ada atau bukan transaksi `online`. Memuat `visitors` (**hanya
-`masked_nik`**), `vehicles`, `payment` (termasuk `simulation_reference`), dan
-`tickets` (kosong sebelum lunas).
+tidak ada atau bukan transaksi `online`. Memuat `barcode_token` (barcode grup
+untuk gerbang), `visitors` (**hanya `masked_nik`**), `vehicles`, `payment`
+(termasuk `simulation_reference`), dan `tickets` (kosong sebelum lunas).
 
 ### `POST /api/v1/bookings/{id}/simulate-payment`
 Simulasi pembayaran akademik (bukan gateway sungguhan). **Hanya pemilik.** Body
@@ -213,8 +214,64 @@ diterbitkan server saat booking dibuat).
 Mencatat pencetakan/pencetakan ulang tiket booking: mengisi `tickets.printed_at`
 dan status `printed` tanpa membuat tiket baru. Diizinkan pemilik atau admin,
 hanya setelah `paid` (`422` bila belum lunas). Pencetakan ulang dibedakan di
-`audit_logs` (`booking.tickets_reprinted`). Barcode check-in gerbang belum aktif
-pada fase ini.
+`audit_logs` (`booking.tickets_reprinted`). Detail booking menyertakan
+`barcode_token` yang dirender sebagai barcode Code128 pada tiket.
+
+## Endpoint gerbang (gate)
+
+Semua endpoint di bawah memerlukan `auth:sanctum` **dan** middleware
+`role:gate_staff,admin`, lalu diotorisasi ulang `TransactionPolicy` lewat
+ability `checkInGate`. `visitor` dan `cashier` selalu `403`; anonim `401`.
+Endpoint check-in juga dibatasi rate limit (`throttle:gate-checkin`, 120/menit
+per petugas + IP).
+
+### `POST /api/v1/gate/check-in`
+Memvalidasi barcode grup dan mencatat kedatangan seluruh rombongan satu
+transaksi. **Body hanya memuat token**; transaksi, status pembayaran, jumlah
+wisatawan, dan petugas divalidasi server dari database dan sesi.
+
+| Field | Tipe | Wajib | Catatan |
+| --- | --- | --- | --- |
+| `barcode_token` | string | ya | token `transactions.barcode_token` (spasi tepi dipangkas) |
+
+Transaksi diambil dengan **row lock** berdasarkan `barcode_token`; permintaan
+bersamaan diserialisasi dan unique `transaction_checkins.transaction_id` menjadi
+jaring pengaman terakhir. Urutan validasi:
+
+1. Token tidak dikenal → **`404`** tanpa membocorkan detail transaksi apa pun.
+2. Pembayaran tidak ada atau belum `success` → **`422`**.
+3. Transaksi sudah `checked_in` → **`409`** (tidak membuat catatan baru).
+4. Transaksi belum `paid` (mis. `pending`/`cancelled`) → **`422`**.
+5. Tanggal check-in bukan hari kunjungan (zona `VISIT_TIMEZONE`, default
+   `Asia/Jakarta`) → **`422`**.
+6. Jumlah pengunjung transaksi tidak konsisten → **`422`**.
+7. Sukses → membuat **tepat satu** baris `transaction_checkins`
+   (`validated_by` = petugas, `visitor_count_checked_in` = jumlah pengunjung),
+   menandai seluruh tiket `used`, dan mengubah `transactions.status` menjadi
+   `checked_in`. Seluruhnya dalam satu transaksi database; `checked_in` hanya
+   diset setelah catatan check-in tersimpan.
+
+Respons sukses `201` (tanpa NIK maupun `barcode_token`):
+
+```json
+{
+  "message": "Check-in berhasil dicatat.",
+  "data": {
+    "transaction_code": "TRX-20261013-AB12CD",
+    "source": "online",
+    "source_label": "Daring",
+    "status": "checked_in",
+    "status_label": "Sudah Check-in",
+    "visit_date": "2026-10-13",
+    "visitor_count": 3,
+    "checked_in_at": "2026-10-13T02:11:05+00:00",
+    "validated_by": { "id": 4, "name": "Petugas Gerbang" }
+  }
+}
+```
+
+Check-in **tidak pernah** mengubah nominal pembayaran atau menambah pendapatan.
+Aksi sukses dicatat di `audit_logs` sebagai `gate.checked_in` tanpa token/NIK.
 
 ## Matriks akses
 
@@ -236,6 +293,7 @@ pada fase ini.
 | `GET /bookings/{id}` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ✅ online | ⛔ 401 |
 | `POST /bookings/{id}/simulate-payment` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ⛔ 403 | ⛔ 401 |
 | `POST /bookings/{id}/print` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ✅ online | ⛔ 401 |
+| `POST /gate/check-in` | ⛔ 403 | ⛔ 403 | ✅ | ✅ | ⛔ 401 |
 
 ## CORS
 
@@ -252,5 +310,5 @@ pernah dikirim ke browser. Lihat [`docs/FRONTEND.md`](FRONTEND.md).
 
 - Reset password dan verifikasi email **belum diimplementasikan**.
 - Pembayaran memakai **simulasi akademik**, bukan gateway sungguhan.
-- Barcode & check-in gerbang, dashboard bisnis, laporan, pembatalan booking
-  (`cancelled`), dan pengelolaan pengguna dikerjakan pada fase berikutnya.
+- Dashboard bisnis, laporan, pembatalan booking (`cancelled`), dan pengelolaan
+  pengguna dikerjakan pada fase berikutnya.
