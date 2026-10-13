@@ -77,12 +77,42 @@ untuk keputusan penyimpanan token.
 
 ## 5. Pengujian
 
+Backend:
+
 ```bash
 php artisan test
 ```
 
 `phpunit.xml` mengeset `DB_CONNECTION=sqlite` dan `DB_DATABASE=:memory:` sehingga
 pengujian tidak menyentuh database MySQL pengembangan.
+
+Frontend (dari direktori `frontend/`):
+
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
+
+### Uji terima terhadap MySQL (smoke)
+
+`scripts/smoke/smoke-mysql.ps1` menempuh alur lengkap di atas MySQL lokal yang
+sedang berjalan: registrasi wisatawan, booking, simulasi pembayaran gagal dan
+sukses, pencetakan tiket, check-in gerbang, transaksi loket, hak akses, serta
+dashboard dan seluruh laporan beserta ekspor CSV-nya.
+
+```bash
+php artisan serve --host=127.0.0.1 --port=8000
+# terminal lain:
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke/smoke-mysql.ps1
+```
+
+Skrip bersifat menambah-saja: hanya membuat data uji baru dan tidak pernah
+menghapus, mereset, atau menimpa data yang sudah ada. Pemeriksaan konkurensi
+check-in dapat dijalankan benar-benar paralel dengan menyalakan server kedua di
+port lain dan mengarahkannya lewat `-ConcurrentBaseUrl` (lihat komentar di kepala
+skrip).
 
 ## 6. Reset data awal
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Admin;
 
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -9,7 +10,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Baris laporan transaksi. Memuat tanggal transaksi dan tanggal kunjungan
  * secara terpisah, serta status/waktu pembayaran.
  *
- * @mixin \App\Models\Transaction
+ * @mixin Transaction
  */
 class TransactionReportRowResource extends JsonResource
 {

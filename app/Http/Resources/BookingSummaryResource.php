@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -11,7 +12,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Deliberately excludes visitor identities, vehicles and tickets: the list only
  * needs enough to pick a booking to open.
  *
- * @mixin \App\Models\Transaction
+ * @mixin Transaction
  */
 class BookingSummaryResource extends JsonResource
 {

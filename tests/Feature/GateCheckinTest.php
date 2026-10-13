@@ -12,7 +12,10 @@ use App\Models\User;
 use App\Models\VehicleType;
 use Database\Seeders\TariffSeeder;
 use Database\Seeders\VehicleTypeSeeder;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -378,5 +381,36 @@ class GateCheckinTest extends TestCase
         $transaction->refresh()->tickets()->get()->each(
             fn ($ticket) => $this->assertNotSame(TicketStatus::Used, $ticket->status),
         );
+    }
+
+    public function test_gate_check_in_limiter_ceiling_is_configured(): void
+    {
+        // Endpoint gerbang dibatasi 120 permintaan/menit per petugas + IP,
+        // sebagai pertahanan berlapis terhadap percobaan menebak token.
+        $resolver = RateLimiter::limiter('gate-checkin');
+
+        $this->assertNotNull($resolver);
+
+        $limit = $resolver(Request::create('/api/v1/gate/check-in', 'POST'));
+
+        $this->assertInstanceOf(Limit::class, $limit);
+        $this->assertSame(120, $limit->maxAttempts);
+        $this->assertSame(60, $limit->decaySeconds);
+    }
+
+    public function test_gate_check_in_is_rate_limited(): void
+    {
+        // Plafon dikecilkan agar pengujian cepat, tetapi permintaan tetap
+        // melewati middleware throttle yang sesungguhnya.
+        RateLimiter::for('gate-checkin', fn () => Limit::perMinute(1));
+
+        $gate = $this->user(Role::GateStaff);
+        $unknown = 'unknown-token-00000000000000000000000000000000';
+
+        // Percobaan pertama lolos limiter dan dijawab seperti biasa.
+        $this->checkIn($gate, $unknown)->assertNotFound();
+
+        // Percobaan kedua dalam jendela yang sama ditolak 429.
+        $this->checkIn($gate, $unknown)->assertStatus(429);
     }
 }

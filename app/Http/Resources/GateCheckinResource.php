@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\TransactionCheckin;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -12,7 +13,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * barcode token, visitor identities, or NIK. The recorded attendance and the
  * officer who validated are enough for the gate to show a clear result.
  *
- * @mixin \App\Models\TransactionCheckin
+ * @mixin TransactionCheckin
  */
 class GateCheckinResource extends JsonResource
 {

@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Ticket;
+use App\Models\Transaction;
 use App\Models\TransactionVehicle;
 use App\Models\Visitor;
 use Illuminate\Http\Request;
@@ -19,7 +20,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * the cashier prints on the tickets and that the gate scans. It carries no
  * personal data.
  *
- * @mixin \App\Models\Transaction
+ * @mixin Transaction
  */
 class CounterTransactionResource extends JsonResource
 {

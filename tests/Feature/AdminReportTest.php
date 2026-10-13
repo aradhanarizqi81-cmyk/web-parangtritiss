@@ -17,6 +17,7 @@ use App\Models\Visitor;
 use Database\Seeders\TariffSeeder;
 use Database\Seeders\VehicleTypeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -68,9 +69,9 @@ class AdminReportTest extends TestCase
      *     visitors?: int,
      *     vehicles?: array<string, int>,
      *     payment_status?: PaymentStatus,
-     *     paid_at?: \Illuminate\Support\Carbon|null,
+     *     paid_at?: Carbon|null,
      *     checked_in_visitors?: int,
-     *     created_at?: \Illuminate\Support\Carbon|null
+     *     created_at?: Carbon|null
      * }  $options
      */
     private function makeTransaction(array $options = []): Transaction
@@ -519,5 +520,82 @@ class AdminReportTest extends TestCase
         $this->asAdmin('/api/v1/admin/reports/visits?'.$this->todayRange().'&per_page=101')
             ->assertStatus(422)
             ->assertJsonValidationErrors('per_page');
+    }
+
+    public function test_per_page_at_the_cap_is_accepted(): void
+    {
+        $this->asAdmin('/api/v1/admin/reports/visits?'.$this->todayRange().'&per_page=100')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 100);
+    }
+
+    public function test_default_pagination_uses_the_configured_per_page(): void
+    {
+        $this->asAdmin('/api/v1/admin/reports/visits?'.$this->todayRange())
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 25);
+    }
+
+    public function test_report_pagination_walks_every_page(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->makeTransaction(['visitors' => 1]);
+        }
+
+        $range = $this->todayRange();
+
+        $this->asAdmin("/api/v1/admin/reports/visits?{$range}&per_page=2&page=1")
+            ->assertOk()
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('meta.per_page', 2)
+            ->assertJsonPath('meta.total', 5)
+            ->assertJsonPath('meta.last_page', 3)
+            ->assertJsonPath('meta.from', 1)
+            ->assertJsonCount(2, 'data');
+
+        $this->asAdmin("/api/v1/admin/reports/visits?{$range}&per_page=2&page=3")
+            ->assertOk()
+            ->assertJsonPath('meta.current_page', 3)
+            ->assertJsonPath('meta.to', 5)
+            ->assertJsonCount(1, 'data');
+
+        // Melewati halaman terakhir tetap balasan sah, hanya tanpa baris.
+        $this->asAdmin("/api/v1/admin/reports/visits?{$range}&per_page=2&page=9")
+            ->assertOk()
+            ->assertJsonPath('meta.total', 5)
+            ->assertJsonPath('meta.from', null)
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_reports_handle_an_empty_dataset(): void
+    {
+        $range = $this->todayRange();
+
+        $this->asAdmin("/api/v1/admin/reports/visits?{$range}")
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('meta.total', 0)
+            ->assertJsonPath('meta.from', null)
+            ->assertJsonPath('meta.to', null)
+            ->assertJsonPath('summary.transactions', 0)
+            ->assertJsonPath('summary.registered_visitors', 0)
+            ->assertJsonPath('summary.checked_in_visitors', 0);
+
+        $this->asAdmin("/api/v1/admin/reports/transactions?{$range}")
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('summary.transactions', 0)
+            ->assertJsonPath('summary.revenue.total', 0);
+
+        // Laporan kendaraan tetap menampilkan seluruh tipe dengan jumlah 0.
+        $this->asAdmin("/api/v1/admin/reports/vehicles?{$range}")
+            ->assertOk()
+            ->assertJsonCount(3, 'data')
+            ->assertJsonPath('summary.quantity', 0)
+            ->assertJsonPath('summary.subtotal', 0);
+
+        $this->asAdmin("/api/v1/admin/reports/identities?{$range}")
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
     }
 }
