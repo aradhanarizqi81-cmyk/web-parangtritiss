@@ -6,6 +6,7 @@ use App\Enums\TicketStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 #[Fillable(['transaction_id', 'visitor_id', 'ticket_code', 'status', 'printed_at'])]
@@ -42,5 +43,10 @@ class Ticket extends Model
     public function visitor(): BelongsTo
     {
         return $this->belongsTo(Visitor::class);
+    }
+
+    public function facilityEntitlements(): HasMany
+    {
+        return $this->hasMany(TicketFacilityEntitlement::class);
     }
 }

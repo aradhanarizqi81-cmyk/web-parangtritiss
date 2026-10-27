@@ -1,3 +1,4 @@
+import { io } from "next/cache";
 import { redirect } from "next/navigation";
 import ExportLink from "@/components/admin/export-link";
 import Pagination from "@/components/admin/pagination";
@@ -15,6 +16,9 @@ import { fetchVisitReport } from "@/lib/reports/server";
 const BASE_PATH = "/admin/laporan/kunjungan";
 const EXPORT_PATH = "/api/admin/reports/visits/export";
 
+// Halaman boleh memblokir: membaca cookie sesi + data terbaru dari Laravel.
+export const instant = false;
+
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function VisitReportPage({
@@ -22,6 +26,9 @@ export default async function VisitReportPage({
 }: {
   searchParams: SearchParams;
 }) {
+  // Periode default memakai jam server, jadi harus dihitung saat request
+  // (bukan saat prerender Cache Components).
+  await io();
   const params = await searchParams;
   const filters = withResolvedPeriod(readReportFilters(params));
   const result = await fetchVisitReport(filters);
@@ -40,7 +47,7 @@ export default async function VisitReportPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Laporan Kunjungan</h1>
-          <p className="mt-1 text-sm text-neutral-600">
+          <p className="mt-1 text-sm text-muted">
             Satu baris mewakili satu transaksi pada tanggal kunjungannya.
             Wisatawan terdaftar dan pengunjung hadir dihitung terpisah.
           </p>
@@ -70,9 +77,9 @@ export default async function VisitReportPage({
         />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
         <table className="w-full min-w-[720px] text-sm">
-          <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+          <thead className="bg-surface-soft text-left text-xs uppercase tracking-wide text-muted">
             <tr>
               <th className="px-3 py-2 font-medium">Kode</th>
               <th className="px-3 py-2 font-medium">Tanggal kunjungan</th>
@@ -83,7 +90,7 @@ export default async function VisitReportPage({
               <th className="px-3 py-2 font-medium">Waktu check-in</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-100">
+          <tbody className="divide-y divide-line">
             {data.length === 0 ? (
               <EmptyRow colSpan={7}>
                 Tidak ada kunjungan pada rentang ini.

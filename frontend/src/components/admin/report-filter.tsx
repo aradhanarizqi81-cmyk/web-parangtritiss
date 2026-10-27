@@ -5,12 +5,12 @@ import type { FormEvent } from "react";
 import type { ReportFilters } from "@/lib/reports/types";
 
 const INPUT_CLASS =
-  "w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600";
-const LABEL_CLASS = "block text-xs font-medium text-neutral-700";
+  "w-full min-w-0 rounded-md border border-line bg-surface px-3 py-2 text-sm text-foreground outline-none transition focus:border-ocean focus:ring-1 focus:ring-ocean";
+const LABEL_CLASS = "block text-xs font-medium text-foreground";
 const BUTTON_CLASS =
-  "rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800";
+  "inline-flex min-h-11 items-center justify-center rounded-full bg-ocean px-5 py-2 text-sm font-semibold text-ivory transition-colors hover:bg-ocean-dark";
 const RESET_CLASS =
-  "rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50";
+  "inline-flex min-h-11 items-center justify-center rounded-full border border-line px-5 py-2 text-sm font-medium text-ocean transition hover:border-ocean/50 hover:bg-surface-soft";
 
 export type FilterField =
   | "source"
@@ -133,7 +133,7 @@ export default function ReportFilter({
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-lg border border-neutral-200 bg-white p-4"
+      className="rounded-lg border border-line bg-surface p-4"
     >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div>
@@ -185,7 +185,7 @@ export default function ReportFilter({
         ) : null}
       </div>
 
-      <div className="mt-4 flex items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <button type="submit" className={BUTTON_CLASS}>
           Terapkan
         </button>

@@ -6,10 +6,15 @@ import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 
 /**
- * Mencatat aksi cetak ke backend (audit) lalu membuka halaman tiket. Backend
- * menolak cetak sebelum lunas dengan 422; cetak ulang hanya menambah audit.
+ * Tombol cetak pada halaman pratinjau tiket.
+ *
+ * Pencatatan aksi cetak ke backend (audit + status tiket) terjadi SAAT tombol
+ * ini ditekan, bukan saat halaman pratinjau dibuka. Bila pencatatan gagal,
+ * dialog cetak tidak dibuka dan pesan galat ditampilkan; backend tetap sumber
+ * kebenaran (422 bila belum lunas, 403 bila bukan pemilik, 401 bila sesi
+ * habis). Berhasilnya pencatatan tidak membuktikan tiket tercetak secara fisik.
  */
-export default function PrintTicketsAction({
+export default function PrintTicketButton({
   bookingId,
 }: {
   bookingId: number;
@@ -27,7 +32,8 @@ export default function PrintTicketsAction({
         `/api/bookings/${bookingId}/print`,
         {},
       );
-      router.push(`/booking/${bookingId}/print`);
+      // Baru buka dialog cetak setelah backend mencatat aksi cetak.
+      window.print();
       router.refresh();
     } catch (caught) {
       setError(
@@ -35,19 +41,20 @@ export default function PrintTicketsAction({
           ? caught.message
           : "Terjadi kesalahan yang tidak terduga.",
       );
+    } finally {
       setPending(false);
     }
   }
 
   return (
-    <div>
+    <div className="print:hidden">
       <button
         type="button"
         onClick={printTickets}
         disabled={pending}
-        className="rounded-md bg-emerald-700 px-4 py-2 font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+        className="inline-flex min-h-11 items-center justify-center rounded-full bg-ocean px-5 py-2 font-semibold text-ivory transition-colors hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {pending ? "Menyiapkan…" : "Cetak tiket"}
+        {pending ? "Menyiapkan…" : "Cetak Tiket"}
       </button>
       {error ? (
         <p

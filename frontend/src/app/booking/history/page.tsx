@@ -19,7 +19,7 @@ export default async function BookingHistoryPage() {
     return (
       <section className="mx-auto max-w-2xl px-4 py-12">
         <h1 className="text-2xl font-semibold">Akses ditolak</h1>
-        <p className="mt-2 text-sm text-neutral-600">
+        <p className="mt-2 text-sm text-muted">
           Anda tidak berhak melihat riwayat booking.
         </p>
       </section>
@@ -51,7 +51,7 @@ export default async function BookingHistoryPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Riwayat booking</h1>
-          <p className="mt-2 text-sm text-neutral-600">
+          <p className="mt-2 text-sm text-muted">
             {isAdmin
               ? "Semua booking online terbaru (maksimal 50)."
               : "Booking online milik Anda, terbaru lebih dahulu (maksimal 50)."}
@@ -60,7 +60,7 @@ export default async function BookingHistoryPage() {
         {isAdmin ? null : (
           <Link
             href="/booking"
-            className="text-sm font-medium text-emerald-800 hover:underline"
+            className="text-sm font-medium text-ocean hover:underline"
           >
             Booking baru
           </Link>
@@ -68,7 +68,7 @@ export default async function BookingHistoryPage() {
       </div>
 
       {bookings.length === 0 ? (
-        <p className="mt-8 rounded-md border border-neutral-200 bg-white px-4 py-6 text-sm text-neutral-500">
+        <p className="mt-8 rounded-md border border-line bg-surface px-4 py-6 text-sm text-muted">
           Belum ada booking.
         </p>
       ) : (
@@ -77,14 +77,14 @@ export default async function BookingHistoryPage() {
             <li key={booking.id}>
               <Link
                 href={`/booking/${booking.id}`}
-                className="block rounded-lg border border-neutral-200 bg-white p-4 hover:border-emerald-300"
+                className="block rounded-lg border border-line bg-surface p-4 hover:border-ocean/40"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="font-mono text-sm font-semibold">
                       {booking.transaction_code}
                     </p>
-                    <p className="mt-1 text-xs text-neutral-500">
+                    <p className="mt-1 text-xs text-muted">
                       Kunjungan {booking.visit_date ?? "—"} ·{" "}
                       {booking.visitor_count} wisatawan
                     </p>

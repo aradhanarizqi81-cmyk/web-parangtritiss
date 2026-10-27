@@ -73,7 +73,7 @@ export default function TransactionActions({
             type="button"
             onClick={confirmPayment}
             disabled={pending !== null}
-            className="rounded-md bg-emerald-700 px-4 py-2 font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center rounded-full bg-ocean px-5 py-2.5 font-semibold text-ivory transition-colors hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending === "confirm"
               ? "Mengonfirmasi…"
@@ -86,7 +86,7 @@ export default function TransactionActions({
             type="button"
             onClick={printTickets}
             disabled={pending !== null}
-            className="rounded-md border border-neutral-300 bg-white px-4 py-2 font-medium text-neutral-800 hover:bg-neutral-100 disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-line bg-surface px-5 py-2.5 font-semibold text-ocean transition hover:border-ocean/50 hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending === "print" ? "Menyiapkan…" : "Cetak tiket"}
           </button>

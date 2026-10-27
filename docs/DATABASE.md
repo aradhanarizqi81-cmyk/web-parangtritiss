@@ -13,6 +13,7 @@ Nilai enum disimpan sebagai string dan dipetakan ke PHP enum di `app/Enums`:
 - `PaymentStatus`: `pending`, `success`, `failed`
 - `PaymentMethod`: `cash`, `simulation`
 - `TicketStatus`: `issued`, `printed`, `used`, `void`
+- `FacilityEntitlementStatus`: `granted`, `redeemed`, `void`
 
 ## Tabel inti
 
@@ -41,8 +42,16 @@ Tarif non-kendaraan yang dikelola admin (mis. tarif wisatawan).
 | `vehicle_total` | subtotal kendaraan |
 | `total_amount` | total transaksi |
 | `status` | `pending` / `paid` / `checked_in` / `cancelled` |
+| `redemption_token` | **nullable unik**, token acak `RDM-…` untuk transaksi `online` — terpisah dari `barcode_token` gerbang |
+| `redeemed_at` | **nullable**, kapan tiket fisik ditukarkan di loket; `null` berarti *Belum Ditukarkan* |
+| `redeemed_by_user_id` | **nullable**, petugas loket yang menukarkan (`nullOnDelete`) |
 
 Snapshot tarif disimpan agar perubahan tarif tidak mengubah transaksi historis.
+
+Status penukaran sengaja **bukan** nilai `transactions.status` baru: ia cukup
+diturunkan dari `redeemed_at`, sehingga laporan, alur pembayaran, dan alur
+check-in gerbang tidak ikut berubah. Transaksi `source=counter` selalu
+`redemption_token = NULL` — hanya booking online yang bisa ditukarkan lewat QR.
 
 ### `visitors`
 `transaction_id` (cascade), `full_name`, `nik` (terenkripsi — kolom `text`).
@@ -53,7 +62,32 @@ Satu baris untuk setiap anggota rombongan.
 `status`, `printed_at`. Satu tiket per wisatawan; kode dibuat otomatis dengan
 format `TKT-YYYYMMDD-XXXXXXXX` (acak, tanpa data pribadi). Pencetakan ulang tidak
 membuat tiket baru dan dicatat pada `audit_logs`. Saat check-in gerbang berhasil,
-seluruh tiket transaksi ditandai `used`.
+seluruh tiket transaksi ditandai `used`. Kode tiket individual adalah kunci meja
+fasilitas, tetapi keputusan klaim tetap dihitung backend.
+
+### `facilities`
+Katalog fasilitas generik: `code` (unik), `name`, `is_auto_granted`, `active`,
+timestamps. `is_auto_granted` menandai fasilitas yang diberikan otomatis setelah
+pembayaran berhasil, sehingga fasilitas baru cukup ditambahkan sebagai baris
+baru tanpa mengubah kode transaksi. Indeks `(active, is_auto_granted)` dipakai
+saat mencari katalog yang akan diberikan. Seeder awal: `FREE_TEA` /
+**Minuman Gratis**.
+
+### `ticket_facility_entitlements`
+Satu hak fasilitas per tiket dan fasilitas: `ticket_id` (cascade),
+`facility_id` (restrict), `status` (`granted`/`redeemed`/`void`), `granted_at`,
+`redeemed_at`, `redeemed_by_user_id` (nullOnDelete), `voided_at`,
+`voided_by_user_id` (nullOnDelete), timestamps.
+
+- **Unique `(ticket_id, facility_id)`** menjamin satu tiket tidak pernah punya
+  dua hak untuk fasilitas yang sama; pemberian ulang memakai `firstOrCreate`.
+- Definisi "masih tersedia" adalah `status = 'granted' AND redeemed_at IS NULL`.
+  Pembaruan klaim memakai kondisi itu (`WHERE`) sehingga dua permintaan paralel
+  hanya menghasilkan satu klaim.
+- `redeemed_at`/`redeemed_by_user_id` adalah riwayat klaim nyata dan tidak
+  dihapus saat pembatalan; hanya hak yang belum diklaim yang diubah menjadi
+  `void`. Indeks `(facility_id, status)` dan `(status, redeemed_at)` mendukung
+  rekap dan pencarian hak tersedia.
 
 ### `transaction_vehicles`
 `transaction_id` (cascade), `vehicle_type_id` (restrict), `quantity`,
@@ -86,9 +120,11 @@ satu transaksi hanya memiliki satu catatan check-in (dilindungi dari pemindaian
 bersamaan).
 
 ### Alur check-in gerbang
-Barcode grup pada tiket adalah `transactions.barcode_token` (opaque, unik, 40
-karakter acak, tanpa data pribadi). Satu barcode mewakili satu
-transaksi/rombongan. Saat dipindai, server:
+Token check-in gerbang adalah `transactions.barcode_token` (opaque, unik, 40
+karakter acak, tanpa data pribadi) dan mewakili satu transaksi/rombongan.
+Pratinjau gelang memakai `tickets.ticket_code` sebagai barcode identitas
+individual; kode itu juga dipakai meja fasilitas, tetapi bukan token check-in.
+Saat token check-in dipindai, server:
 
 1. mengunci baris transaksi berdasarkan `barcode_token` (`lockForUpdate`);
 2. memverifikasi pembayaran `success` dan status `paid`;
@@ -102,6 +138,27 @@ status atau catatan check-in yang tidak konsisten. Pemeriksaan ganda dijaga oleh
 row lock (MySQL/InnoDB) dan unique `transaction_checkins.transaction_id`.
 Check-in tidak mengubah nominal pembayaran.
 
+### Alur hak fasilitas per tiket
+
+1. Katalog fasilitas diisi `FacilitySeeder` (atau baris baru di `facilities`).
+2. Saat pembayaran berhasil — simulasi booking online **atau** konfirmasi tunai
+   loket — `FacilityEntitlementService` membuat satu baris
+   `ticket_facility_entitlements` per tiket non-`void` untuk setiap fasilitas
+   aktif `is_auto_granted`. Pembuatan memakai `firstOrCreate` dan unique
+   `(ticket_id, facility_id)`, jadi aman diulang.
+3. Klaim loket mencari tiket dari `tickets.ticket_code`, lalu memeriksa
+   pembayaran `success`, transaksi tidak `cancelled`, `visit_date` hari ini pada
+   `config('visit.timezone')`, dan keberadaan baris `transaction_checkins`.
+   Hak harus masih `granted` dan `redeemed_at IS NULL`.
+4. Klaim mengunci tiket/transaksi/pembayaran/hak, memperbarui secara bersyarat,
+   lalu menulis audit `counter_facility.redeemed`. Klaim tidak membuat check-in.
+5. Pembatalan transaksi (`transactions.status → cancelled`) memanggil
+   `voidForTransaction()`: hak yang belum diklaim menjadi `void`; hak yang sudah
+   diklaim dipertahankan sebagai riwayat.
+6. Transaksi lunas lama dapat diisi manual lewat
+   `php artisan facilities:backfill` (idempoten, mendukung `--dry-run` dan
+   `--force` untuk production). Tidak berjalan otomatis pada migration/seeder.
+
 ### `audit_logs`
 `user_id` (nullable), `action`, `entity_type`, `entity_id`, `metadata` (JSON).
 Digunakan untuk mencatat perubahan tarif, tindakan administratif, dan pencetakan
@@ -114,6 +171,12 @@ Dashboard & laporan hanya menambah indeks — tidak ada tabel atau kolom baru:
 - `transactions.created_at` — menyaring jumlah transaksi berdasarkan waktu
   transaksi dibuat.
 - `payments (status, paid_at)` — rekap pendapatan pembayaran `success`.
+- `facilities (active, is_auto_granted)` — mencari katalog yang diberikan
+  otomatis setelah pembayaran.
+- `ticket_facility_entitlements (facility_id, status)` dan
+  `(status, redeemed_at)` — rekap klaim dan pencarian hak yang masih tersedia.
+- Unique `ticket_facility_entitlements (ticket_id, facility_id)` — mencegah hak
+  ganda dan membuat pemberian ulang idempoten.
 
 Indeks lain yang sudah ada dan terpakai: `transactions.visit_date`,
 `transactions.status`, `transactions (visit_date, status)`, dan `payments.status`.
@@ -131,7 +194,7 @@ memakai indeks (tanpa fungsi pada kolom).
 users ──< transactions >── vehicle_types
               │                   │
               │                   └──< transaction_vehicles
-              ├──< visitors ──1 tickets
+              ├──< visitors ──1 tickets ──< ticket_facility_entitlements >── facilities
               ├──1 payments
               └──1 transaction_checkins
 ```

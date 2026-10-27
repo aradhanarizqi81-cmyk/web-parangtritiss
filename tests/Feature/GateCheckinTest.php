@@ -259,6 +259,19 @@ class GateCheckinTest extends TestCase
         $this->assertSame(0, TransactionCheckin::count());
     }
 
+    public function test_a_redemption_code_is_not_accepted_at_the_gate(): void
+    {
+        $transaction = $this->paidBooking($this->user(Role::Visitor));
+        $gate = $this->user(Role::GateStaff);
+
+        $this->assertNotEmpty($transaction->redemption_token);
+
+        $this->checkIn($gate, (string) $transaction->redemption_token)->assertNotFound();
+
+        $this->assertSame(0, TransactionCheckin::count());
+        $this->assertSame(TransactionStatus::Paid, $transaction->fresh()->status);
+    }
+
     public function test_a_transaction_can_only_be_checked_in_once(): void
     {
         $transaction = $this->paidBooking($this->user(Role::Visitor));

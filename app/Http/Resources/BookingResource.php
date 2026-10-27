@@ -99,6 +99,20 @@ class BookingResource extends JsonResource
                 ])
                 ->values()),
 
+            /*
+             * Redemption (counter pickup). The redemption code is only
+             * meaningful once payment has succeeded, so it is withheld until
+             * then: the frontend can never show a redemption QR before the
+             * booking is paid, even if a UI bug tried to.
+             */
+            'redemption' => [
+                'redeemed' => $this->isRedeemed(),
+                'redeemed_at' => $this->redeemed_at?->toIso8601String(),
+                'status' => $this->isRedeemed() ? 'redeemed' : 'pending',
+                'status_label' => $this->isRedeemed() ? 'Sudah Ditukarkan' : 'Belum Ditukarkan',
+                'token' => $this->isPaid() ? $this->redemption_token : null,
+            ],
+
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

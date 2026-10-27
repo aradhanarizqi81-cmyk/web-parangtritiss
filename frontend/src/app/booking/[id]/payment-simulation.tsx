@@ -95,7 +95,7 @@ export default function PaymentSimulation({
           type="button"
           onClick={() => simulate("success")}
           disabled={pending !== null}
-          className="rounded-md bg-emerald-700 px-4 py-2 font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+          className="inline-flex min-h-11 items-center justify-center rounded-full bg-ocean px-5 py-2 font-semibold text-ivory transition-colors hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending === "success" ? "Memproses…" : "Bayar sekarang"}
         </button>
@@ -103,7 +103,7 @@ export default function PaymentSimulation({
           type="button"
           onClick={() => simulate("failure")}
           disabled={pending !== null}
-          className="rounded-md border border-neutral-300 px-4 py-2 font-medium text-neutral-700 hover:bg-white disabled:opacity-60"
+          className="inline-flex min-h-11 items-center justify-center rounded-full border border-line bg-surface px-5 py-2 font-semibold text-ocean transition hover:border-ocean/50 hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending === "failure" ? "Memproses…" : "Simulasikan gagal"}
         </button>

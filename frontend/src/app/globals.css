@@ -1,26 +1,133 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #faf8f2;
+  --foreground: #183b38;
+  --ocean: #174a45;
+  --ocean-dark: #103632;
+  --sand: #e9d8b8;
+  --ivory: #fffaf0;
+  --muted: #6b7771;
+  --line: #e4e1d7;
+  --surface: #ffffff;
+  --surface-soft: #f3f0e7;
+  --focus-ring: rgba(23, 74, 69, 0.2);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-ocean: var(--ocean);
+  --color-ocean-dark: var(--ocean-dark);
+  --color-sand: var(--sand);
+  --color-ivory: var(--ivory);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/*
+ * Normalisasi dan dasar tema wajib berada di dalam `@layer base` supaya tetap
+ * kalah prioritas dari utility Tailwind (mis. `text-ivory`, `bg-ocean`).
+ *
+ * Sebelumnya aturan ini ditulis tanpa layer sehingga, sesuai spesifikasi CSS
+ * Cascade Layers, selalu mengalahkan utility yang berada di `@layer utilities`.
+ * Akibatnya `a { color: inherit }` menimpa `text-white`/`text-ivory` pada setiap
+ * <a> (termasuk <Link> Next.js) dan membuat teks tombol menjadi gelap.
+ */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 90px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: Arial, Helvetica, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: var(--sand);
+    color: var(--ocean-dark);
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  input,
+  textarea,
+  select {
+    color: var(--foreground);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #8b938c;
+    opacity: 1;
+  }
+
+  :where(a, button, input, textarea, select):focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 3px;
+  }
+
+  img {
+    max-width: 100%;
+  }
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--line);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /*
+   * Gelang tiket: paksa browser mencetak warna latar gradien dan aksen ivory,
+   * bukan menggantinya dengan putih agar barcode dan identitas tetap terbaca.
+   */
+  .ticket-band {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,3 +1,4 @@
+import { io } from "next/cache";
 import { redirect } from "next/navigation";
 import ReportFilter from "@/components/admin/report-filter";
 import { ErrorNotice, MetricCard } from "@/components/admin/ui";
@@ -14,6 +15,9 @@ export default async function AdminDashboardPage({
 }: {
   searchParams: SearchParams;
 }) {
+  // Periode default memakai jam server, jadi harus dihitung saat request
+  // (bukan saat prerender Cache Components).
+  await io();
   const params = await searchParams;
   const filters = withResolvedPeriod(readDateFilters(params));
   const result = await fetchDashboard(filters);
@@ -30,7 +34,7 @@ export default async function AdminDashboardPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Ringkasan Operasional</h1>
-        <p className="mt-1 text-sm text-neutral-600">
+        <p className="mt-1 text-sm text-muted">
           Periode {period.date_from} sampai {period.date_to} ({period.timezone}).
           Seluruh angka dihitung dari database.
         </p>
@@ -62,12 +66,12 @@ export default async function AdminDashboardPage({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="rounded-lg border border-line bg-surface p-4">
           <h2 className="text-sm font-semibold">Transaksi per sumber</h2>
           <dl className="mt-3 space-y-1 text-sm">
             {Object.entries(transactions.by_source).map(([code, count]) => (
               <div key={code} className="flex justify-between">
-                <dt className="text-neutral-600">
+                <dt className="text-muted">
                   {SOURCE_LABELS[code] ?? code}
                 </dt>
                 <dd className="tabular-nums">{formatNumber(count)}</dd>
@@ -79,19 +83,19 @@ export default async function AdminDashboardPage({
           <dl className="mt-3 space-y-1 text-sm">
             {Object.entries(transactions.by_status).map(([code, count]) => (
               <div key={code} className="flex justify-between">
-                <dt className="text-neutral-600">{STATUS_LABELS[code] ?? code}</dt>
+                <dt className="text-muted">{STATUS_LABELS[code] ?? code}</dt>
                 <dd className="tabular-nums">{formatNumber(count)}</dd>
               </div>
             ))}
           </dl>
         </div>
 
-        <div className="rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="rounded-lg border border-line bg-surface p-4">
           <h2 className="text-sm font-semibold">Pendapatan per sumber</h2>
           <dl className="mt-3 space-y-1 text-sm">
             {Object.entries(revenue.by_source).map(([code, total]) => (
               <div key={code} className="flex justify-between">
-                <dt className="text-neutral-600">
+                <dt className="text-muted">
                   {SOURCE_LABELS[code] ?? code}
                 </dt>
                 <dd className="tabular-nums">{formatRupiah(total)}</dd>
@@ -103,12 +107,12 @@ export default async function AdminDashboardPage({
           </p>
         </div>
 
-        <div className="rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="rounded-lg border border-line bg-surface p-4">
           <h2 className="text-sm font-semibold">Kendaraan</h2>
           <dl className="mt-3 space-y-1 text-sm">
             {vehicles.map((vehicle) => (
               <div key={vehicle.code} className="flex justify-between">
-                <dt className="text-neutral-600">{vehicle.name}</dt>
+                <dt className="text-muted">{vehicle.name}</dt>
                 <dd className="tabular-nums">{formatNumber(vehicle.quantity)}</dd>
               </div>
             ))}

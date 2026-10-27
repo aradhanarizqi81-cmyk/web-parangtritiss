@@ -27,7 +27,7 @@ export default async function AdminLayout({
     return (
       <section className="mx-auto max-w-2xl px-4 py-12">
         <h1 className="text-2xl font-semibold">Akses ditolak</h1>
-        <p className="mt-2 text-sm text-neutral-600">
+        <p className="mt-2 text-sm text-muted">
           Dasbor dan laporan hanya untuk administrator. Tampilan ini hanya
           gerbang UI; otorisasi sebenarnya tetap ditegakkan di backend.
         </p>

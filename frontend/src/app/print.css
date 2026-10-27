@@ -1,0 +1,416 @@
+/*
+ * Gaya gelang tiket Pantai Parangtritis (tampilan layar + aturan cetak).
+ *
+ * Dipisah dari globals.css agar bentuk dan konfigurasi media cetak gelang mudah
+ * ditemukan. Diimpor sekali di layout.tsx.
+ *
+ * BENTUK: mengikuti referensi "Tiket Gelang Pantai Parangtritis" — pita datar
+ * sangat memanjang, rasio ±8,4:1, enam zona dari kiri ke kanan:
+ *   1. tab kunci (pasak)      4,5%
+ *   2. panel brand hijau      41%   nama pantai, identitas pesisir, ombak
+ *   3. panel ivory kode       24%   kode tiket individual + Code128
+ *   4. panel ivory tanggal    14,5% tanggal kunjungan, salam, nama
+ *   5. panel ivory ornamen    12%   pola ombak toska
+ *   6. tab kunci (lubang)     4%
+ * Lebar zona memakai flex-grow proporsional (bukan mm absolut) supaya proporsi
+ * referensi tetap terjaga berapa pun lebar media yang dipakai printer.
+ *
+ * KONFIGURASI MEDIA — ukuran printer/media gelang fisik BELUM ditentukan, jadi
+ * `@page` memakai `size: auto` (mengikuti kertas di dialog cetak) dengan margin
+ * 8mm. Tinggi gelang diatur lewat `--wristband-print-height`. Setelah ukuran
+ * media pasti diketahui (mis. roll 40mm × 200mm), ganti blok @page menjadi:
+ *
+ *     @page { size: 40mm 200mm; margin: 0; }
+ *
+ * lalu setel `--wristband-print-height` agar mendekati tinggi media dan periksa
+ * hasil cetak terhadap gambar referensi. Layout belum diverifikasi siap
+ * produksi sampai media, margin, dan printer nyata diuji.
+ *
+ * Barcode mengodekan kode tiket individual yang sudah disimpan backend.
+ * Barcode ini hanya identitas tiket; backend belum menyediakan hak atau alur
+ * penukaran fasilitas individual.
+ */
+
+:root {
+  --wb-green: #0b6b63;
+  --wb-green-deep: #0b6b63;
+  --wb-toska: #1fb8a8;
+  --wb-ivory: #f6f1e7;
+  --wb-ivory-line: #cfc5ae;
+  --wb-ink: #0b5a54;
+  --wb-ink-soft: #48645f;
+
+  /* Tinggi minimum satu gelang saat dicetak. */
+  --wristband-print-height: 24mm;
+}
+
+@page {
+  size: auto;
+  margin: 8mm;
+}
+
+.wristband-scroll {
+  width: 100%;
+  max-width: 1080px;
+  margin-inline: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 2px 4px;
+}
+
+.wristband {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 640px;
+  min-height: 80px;
+  aspect-ratio: 8.4 / 1;
+  overflow: hidden;
+  border: 1px solid rgba(16, 54, 50, 0.15);
+  border-radius: 12px;
+  background: var(--wb-ivory);
+  box-shadow: 0 1px 2px rgba(16, 54, 50, 0.12);
+}
+
+.wristband > * {
+  min-width: 0;
+}
+
+/* --- 1 & 6: tab kunci ---------------------------------------------------- */
+
+.wristband-tab {
+  display: flex;
+  flex: 4.5 1 0;
+  align-items: center;
+  justify-content: center;
+  background: var(--wb-ivory);
+}
+
+.wristband-peg {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(10, 122, 118, 0.45);
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.65);
+}
+
+.wristband-tab-right {
+  border-left: 1px dashed var(--wb-ivory-line);
+}
+
+.wristband-hole {
+  width: 12px;
+  height: 26px;
+  border: 2px dashed var(--wb-green);
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+/* --- 2: panel brand ----------------------------------------------------- */
+
+.wristband-brand {
+  position: relative;
+  display: flex;
+  flex: 41 1 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px dashed rgba(255, 255, 255, 0.7);
+  border-right: 1px dashed rgba(255, 255, 255, 0.7);
+  background: var(--wb-green);
+  color: #ffffff;
+}
+
+.wristband-brand-sun {
+  position: absolute;
+  top: 7%;
+  right: 4%;
+  width: 16%;
+  max-width: 54px;
+  color: #ffffff;
+  opacity: 0.8;
+}
+
+.wristband-brand-text {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 12px;
+}
+
+.wristband-brand-title {
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.01em;
+}
+
+.wristband-brand-sub {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.wristband-brand-wave {
+  display: block;
+  flex: 0 0 auto;
+  width: 100%;
+  height: 26%;
+  color: var(--wb-toska);
+}
+
+/* --- 3: panel kode + barcode ------------------------------------------- */
+
+.wristband-code {
+  display: flex;
+  flex: 24 1 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 12px;
+  background: var(--wb-ivory);
+}
+
+.wristband-code-label {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--wb-ink);
+}
+
+.wristband-code-value,
+.wristband-code-repeat {
+  font-family: var(--font-geist-mono, ui-monospace), monospace;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+  color: var(--wb-ink);
+}
+
+.wristband-code-value {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.wristband-code-repeat {
+  font-size: 9px;
+  color: var(--wb-ink-soft);
+  text-align: center;
+}
+
+.wristband-barcode {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border-radius: 2px;
+  background: #ffffff;
+}
+
+.ticket-barcode-svg {
+  display: block;
+  width: 100%;
+  height: 28px;
+}
+
+/* --- 4: panel tanggal -------------------------------------------------- */
+
+.wristband-date {
+  display: flex;
+  flex: 14.5 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  /* Ruang ekstra antara panel barcode dan tanggal (quiet zone visual). */
+  margin-left: 1.5mm;
+  padding: 8px 10px;
+  text-align: center;
+  background: var(--wb-ivory);
+}
+
+.wristband-date-value {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: var(--wb-ink);
+}
+
+.wristband-date-wave {
+  width: 26px;
+  color: var(--wb-toska);
+}
+
+.wristband-date-greeting {
+  font-size: 9.5px;
+  line-height: 1.15;
+  color: var(--wb-ink-soft);
+}
+
+/* Nama pemegang dibedakan dari salam agar tidak terbaca sebagai satu frasa. */
+.wristband-date-name {
+  max-width: 100%;
+  margin-top: 0.5mm;
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--wb-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- 5: sisi ornamen ombak ivory/toska -------------------------------- */
+
+.wristband-ornament {
+  position: relative;
+  flex: 12 1 0;
+  overflow: hidden;
+  border-left: 1px dashed var(--wb-ivory-line);
+  background: var(--wb-ivory);
+  color: var(--wb-toska);
+}
+
+/*
+ * SVG di-absolute agar rasio intrinsiknya (viewBox 40×48) tidak ikut
+ * menentukan tinggi gelang saat layout. Tanpa ini, tinggi pita terkunci pada
+ * rasio ornamen (±108px) alih-alih pada isi panel.
+ */
+.wristband-ornament-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* --- Cetak ------------------------------------------------------------- */
+
+@media print {
+  /*
+   * Warna panel harus ikut tercetak. Chrome/Edge menghormati
+   * `print-color-adjust: exact` meski "Background graphics" mati; di browser
+   * lain, aktifkan "Background graphics" bila panel tampak putih. Barcode tetap
+   * terbaca apa pun pilihannya: SVG-nya menggambar latar putih dan bar hitam
+   * sendiri.
+   */
+  .wristband,
+  .wristband * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .wristband-scroll {
+    overflow: visible;
+    padding: 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /*
+   * Satu gelang = satu baris penuh, memanjang, tidak boleh terbelah antar
+   * halaman. `min-height` (bukan `height`) supaya isi tidak terpotong bila nama
+   * pengunjung panjang.
+   */
+  /*
+   * Border tipis dipertahankan (bukan `border: none`): tanpa siluet, tab ivory
+   * menyatu dengan kertas putih dan pasak kiri terbaca terpisah dari badan
+   * gelang.
+   */
+  .wristband {
+    min-width: 0;
+    width: 100%;
+    min-height: var(--wristband-print-height);
+    border: 0.25mm solid rgba(16, 54, 50, 0.4);
+    border-radius: 2mm;
+    box-shadow: none;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .wristband-brand-text {
+    gap: 0.6mm;
+    padding: 0 3mm;
+  }
+
+  .wristband-brand-title {
+    font-size: 17pt;
+  }
+
+  .wristband-brand-sub {
+    font-size: 8pt;
+  }
+
+  .wristband-brand-wave {
+    height: 24%;
+  }
+
+  /*
+   * Panel kode: whitespace barcode diprioritaskan (seperti referensi — barcode
+   * bernapas dari teks di atas/bawahnya), tipografi panel dikecilkan agar
+   * tinggi band tetap ±24mm (rasio ±8:1 terhadap lebar media 194mm).
+   */
+  .wristband-code {
+    gap: 0.8mm;
+    padding: 2.5mm;
+  }
+
+  .wristband-code-label {
+    font-size: 7pt;
+    line-height: 1.1;
+  }
+
+  .wristband-code-value {
+    font-size: 7.5pt;
+    line-height: 1.1;
+  }
+
+  .wristband-code-repeat {
+    font-size: 6pt;
+    line-height: 1.1;
+  }
+
+  .wristband-barcode {
+    padding: 1.5mm 2mm;
+  }
+
+  .ticket-barcode-svg {
+    height: 7mm;
+  }
+
+  .wristband-date {
+    gap: 0.5mm;
+    padding: 1.8mm 2mm;
+  }
+
+  .wristband-date-value {
+    font-size: 9.5pt;
+  }
+
+  .wristband-date-wave {
+    width: 5mm;
+  }
+
+  .wristband-date-greeting {
+    font-size: 7pt;
+  }
+
+  .wristband-date-name {
+    font-size: 6.5pt;
+  }
+
+  .wristband-peg {
+    width: 4.5mm;
+    height: 4.5mm;
+  }
+
+  .wristband-hole {
+    width: 3mm;
+    height: 6.5mm;
+  }
+}

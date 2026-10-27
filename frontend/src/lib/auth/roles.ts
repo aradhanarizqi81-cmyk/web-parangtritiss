@@ -60,3 +60,27 @@ export function isVisitor(role: Role): boolean {
 export function canUseDashboard(role: Role): boolean {
   return role === "admin";
 }
+
+/**
+ * Tujuan setelah masuk lewat portal operasional.
+ *
+ * Pemetaan ini hanya menerjemahkan identitas yang SUDAH diverifikasi backend
+ * (role pada respons login atau `/auth/me`) menjadi halaman yang hak aksesnya
+ * memang dimiliki peran tersebut. `null` berarti akun itu bukan pegawai dan
+ * harus ditolak dari portal operasional.
+ *
+ * Role tidak pernah dibaca dari input form, dan fungsi ini tidak menerima URL
+ * dari pengguna, sehingga tidak ada pengalihan terbuka.
+ */
+export function staffDestination(role: Role): string | null {
+  switch (role) {
+    case "admin":
+      return "/admin";
+    case "cashier":
+      return "/counter";
+    case "gate_staff":
+      return "/gate";
+    default:
+      return null;
+  }
+}

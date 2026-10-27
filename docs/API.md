@@ -143,7 +143,132 @@ Mencatat pencetakan atau pencetakan ulang tiket: mengisi `tickets.printed_at` da
 `status printed` **tanpa** menambah tiket atau transaksi baru. `422` bila transaksi
 belum berstatus `paid`. Pencetakan ulang dibedakan di `audit_logs`
 (`counter_transaction.tickets_reprinted`). Detail transaksi loket menyertakan
-`barcode_token` yang dirender sebagai barcode Code128 pada tiket.
+`barcode_token` untuk check-in gerbang. Pratinjau gelang mencetak Code128 dari
+`tickets[].ticket_code` sebagai identitas individual.
+
+## Endpoint penukaran (counter redemption)
+
+Penukaran tiket fisik (gelang) untuk **booking online** yang sudah lunas. Semua
+endpoint di bawah ini memerlukan `auth:sanctum` **dan** `role:cashier,admin`,
+diotorisasi lewat `TransactionPolicy::lookupRedemption` /
+`confirmRedemption` / `printRedemption`, serta dibatasi rate limiter
+`counter-redemption` (120/menit per petugas + IP).
+
+**Klien tidak pernah mengirim `transaction_id`**: booking selalu ditemukan dari
+kode penukaran, dan kode tersebut tidak pernah dikirim lewat URL/`query`.
+Ketiga endpoint menerima body `{ "redemption_token": "RDM-…" }` dan membalikkan
+`404` bila kode tidak dikenal atau bukan transaksi `source=online`.
+
+### `POST /api/v1/counter/redemptions/lookup`
+Pratinjau read-only. **Tidak mengubah status apa pun** dan tidak menulis audit —
+memindai atau membuka pratinjau tidak pernah menandai booking ditukarkan.
+
+Respons `200` berisi ringkasan pesanan (pemilik, tanggal kunjungan, jumlah
+pengunjung, jumlah kendaraan, jumlah tiket, status pembayaran), `visitors`
+(hanya `masked_nik`), `barcode_token` (token check-in gerbang),
+dan blok `redemption` berisi `status`, `status_label`, `can_redeem`,
+`can_reprint`, serta `block_reason` — `200` + alasan, bukan error, supaya petugas
+tetap bisa membaca booking yang belum lunas.
+
+### `POST /api/v1/counter/redemptions/confirm`
+Satu-satunya aksi yang menandai booking ditukarkan (`redeemed_at`,
+`redeemed_by_user_id`, audit `counter_redemption.completed`). Dijalankan dalam
+transaksi database dengan `lockForUpdate` **dan** pembaruan bersyarat
+`WHERE redeemed_at IS NULL`, sehingga dua permintaan bersamaan tetap
+menghasilkan **satu** penukaran.
+
+- `422` bila pembayaran belum sukses atau tiket belum diterbitkan;
+- `409` bila sudah pernah ditukarkan (stempel waktu penukaran pertama tetap);
+- `404` bila kode tidak dikenal.
+
+Tidak membuat check-in gerbang, tidak mengubah `barcode_token`, dan tidak
+menambah `TransactionStatus` baru.
+
+### `POST /api/v1/counter/redemptions/print`
+Mencatat pencetakan (atau pencetakan ulang) gelang untuk booking yang **sudah
+ditukarkan**: hanya `tickets.printed_at` (nilai pertama dipertahankan) dan status
+`printed` yang diperbarui. Idempoten — tidak membuat tiket baru, tidak
+menggandakan penukaran, tidak membuat check-in. Audit
+`counter_redemption.tickets_printed` atau
+`counter_redemption.tickets_reprinted`. `422` bila belum lunas, belum
+ditukarkan, atau tiket belum diterbitkan.
+
+`redemption_token` tidak pernah dicerminkan kembali pada respons loket; pada
+`GET /api/v1/bookings/{id}` ia hanya disertakan **setelah pembayaran sukses**
+untuk pemilik booking (dan admin), sehingga QR/barcode penukaran tidak pernah
+tampil sebelum booking lunas. NIK mentah tidak pernah ikut dalam respons
+mana pun.
+
+## Endpoint klaim fasilitas (counter facility)
+
+Hak fasilitas melekat pada **tiket individual**, bukan pada transaksi/rombongan.
+Setelah pembayaran benar-benar berhasil, backend otomatis membuat satu baris
+`ticket_facility_entitlements` untuk setiap tiket yang tidak `void` dan setiap
+fasilitas aktif bertanda `is_auto_granted`. Fasilitas awal berasal dari
+`FacilitySeeder` (`FREE_TEA`, nama **Minuman Gratis**); fasilitas baru cukup
+ditambahkan sebagai baris katalog baru tanpa mengubah alur transaksi.
+
+Semua endpoint di bawah memerlukan `auth:sanctum` **dan** `role:cashier,admin`,
+diotorisasi lewat `TransactionPolicy::lookupFacility` / `claimFacility`, serta
+dibatasi rate limiter `counter-facility` (120/menit per petugas + IP).
+`visitor` dan `gate_staff` selalu `403`.
+
+**Klien tidak pernah mengirim `transaction_id`, `entitlement_id`, atau status.**
+Tiket selalu ditemukan dari `ticket_code` individual pada gelang
+(`TKT-YYYYMMDD-XXXXXXXX`). `barcode_token` gerbang dan `redemption_token`
+online **bukan** kunci yang sah dan ditolak validasi. Kode tidak pernah dikirim
+lewat URL/`query`.
+
+### `POST /api/v1/counter/facilities/lookup`
+
+Body: `{ "ticket_code": "TKT-…" }`.
+
+Pratinjau read-only; **tidak mengubah status apa pun** dan tidak menulis audit.
+Respons `200` berisi tiket (`ticket_code`, status), `visitor` (hanya
+`masked_nik`), ringkasan `transaction` + `payment` + `checkin`, dan array
+`facilities`. Setiap fasilitas memuat `entitlement_id`, `code`, `name`,
+`status` (`granted`/`redeemed`/`void`), `granted_at`, `redeemed_at`,
+`redeemed_by`, `voided_at`, `can_claim`, dan `block_reason`. `can_claim` dan
+`block_reason` dihitung backend; `200` + alasan lebih informatif daripada error
+untuk tiket yang belum memenuhi syarat. `404` bila kode tiket tidak dikenal.
+
+### `POST /api/v1/counter/facilities/claim`
+
+Body: `{ "ticket_code": "TKT-…", "facility_code": "FREE_TEA" }`.
+
+Satu-satunya aksi yang menulis: `status → redeemed`, `redeemed_at`,
+`redeemed_by_user_id`, dan audit `counter_facility.redeemed` (kode transaksi +
+kode/nama fasilitas, tanpa token/NIK). Dijalankan dalam transaksi database
+dengan `lockForUpdate` pada tiket, transaksi, pembayaran, dan hak, lalu
+pembaruan bersyarat `WHERE status = 'granted' AND redeemed_at IS NULL`; dua
+permintaan paralel menghasilkan **satu** klaim dan yang kalah dijawab `409`.
+
+Syarat yang ditegakkan backend:
+
+1. fasilitas dikenal dan `active`;
+2. transaksi tidak `cancelled`;
+3. pembayaran benar-benar `success` (bukan hanya status tiket);
+4. tiket memiliki hak untuk fasilitas tersebut dan belum `void`;
+5. hak belum pernah diklaim;
+6. `visit_date` sama dengan hari ini pada `config('visit.timezone')`;
+7. baris `transaction_checkins` benar-benar ada.
+
+Pemetaan error: `404` kode tiket/fasilitas tidak dikenal; `422` belum lunas,
+dibatalkan, belum check-in, bukan tanggal kunjungan, fasilitas nonaktif, hak
+`void`, atau hak tidak ada; `409` sudah diklaim atau kalah balapan.
+Klaim **tidak** membuat atau mengubah check-in, status transaksi, maupun
+`barcode_token`.
+
+### Backfill manual (bukan endpoint)
+
+`php artisan facilities:backfill [--dry-run] [--from=Y-m-d] [--to=Y-m-d]
+[--facility=CODE] [--chunk=500] [--force]`
+
+Mengisi hak untuk transaksi lunas sebelum fitur ini ada. Idempoten (aman
+dijalankan berulang), mendukung `--dry-run` yang hanya menghitung, dan menolak
+berjalan di production tanpa `--force`. Tidak pernah dipanggil otomatis oleh
+migration/seeder. Jalankan `php artisan db:seed --class=FacilitySeeder` lebih
+dulu agar katalog fasilitas tersedia.
 
 ## Endpoint booking online
 
@@ -191,8 +316,8 @@ pembayaran) — tanpa identitas, kendaraan, atau tiket.
 
 ### `GET /api/v1/bookings/{id}`
 Detail booking `online`. `403` bila bukan pemilik (dan bukan admin); `404` bila
-tidak ada atau bukan transaksi `online`. Memuat `barcode_token` (barcode grup
-untuk gerbang), `visitors` (**hanya `masked_nik`**), `vehicles`, `payment`
+tidak ada atau bukan transaksi `online`. Memuat `barcode_token` (token
+check-in gerbang), `visitors` (**hanya `masked_nik`**), `vehicles`, `payment`
 (termasuk `simulation_reference`), dan `tickets` (kosong sebelum lunas).
 
 ### `POST /api/v1/bookings/{id}/simulate-payment`
@@ -215,7 +340,10 @@ Mencatat pencetakan/pencetakan ulang tiket booking: mengisi `tickets.printed_at`
 dan status `printed` tanpa membuat tiket baru. Diizinkan pemilik atau admin,
 hanya setelah `paid` (`422` bila belum lunas). Pencetakan ulang dibedakan di
 `audit_logs` (`booking.tickets_reprinted`). Detail booking menyertakan
-`barcode_token` yang dirender sebagai barcode Code128 pada tiket.
+`barcode_token` untuk check-in gerbang; pratinjau gelang memakai Code128 dari
+`tickets[].ticket_code`. Kode tiket individual itu juga menjadi kunci meja
+fasilitas, tetapi bukan bukti hak: backend tetap memeriksa pembayaran, check-in,
+tanggal kunjungan, dan status hak sebelum mengizinkan klaim.
 
 ## Endpoint gerbang (gate)
 
@@ -367,6 +495,11 @@ dengan filter yang sama, **tanpa paginasi**. Jumlah baris dibatasi
 | `GET /counter/transactions/{id}` | ⛔ 403 | ✅ semua loket | ⛔ 403 | ✅ | ⛔ 401 |
 | `POST /counter/transactions/{id}/confirm-payment` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
 | `POST /counter/transactions/{id}/print` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
+| `POST /counter/redemptions/lookup` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
+| `POST /counter/redemptions/confirm` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
+| `POST /counter/redemptions/print` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
+| `POST /counter/facilities/lookup` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
+| `POST /counter/facilities/claim` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
 | `GET /booking/tariffs` | ✅ | ⛔ 403 | ⛔ 403 | ✅ | ⛔ 401 |
 | `POST /bookings` | ✅ | ⛔ 403 | ⛔ 403 | ⛔ 403 | ⛔ 401 |
 | `GET /bookings` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ✅ semua online | ⛔ 401 |
@@ -393,7 +526,10 @@ pernah dikirim ke browser. Lihat [`docs/FRONTEND.md`](FRONTEND.md).
 
 - Reset password dan verifikasi email **belum diimplementasikan**.
 - Pembayaran memakai **simulasi akademik**, bukan gateway sungguhan.
-- Pembatalan booking (`cancelled`), pengelolaan pengguna, dan laporan berkas
-  (PDF/Excel) dikerjakan pada fase berikutnya.
+- Pembatalan booking belum memiliki endpoint khusus. Bila status transaksi
+  diubah menjadi `cancelled`, model `Transaction` otomatis membatalkan hak
+  fasilitas yang belum diklaim; hak yang sudah diklaim dipertahankan sebagai
+  riwayat. Pengelolaan pengguna dan laporan berkas (PDF/Excel) dikerjakan pada
+  fase berikutnya.
 - Laporan identitas hanya menyediakan mekanisme **NIK tersamarkan**; mekanisme
   membuka NIK penuh tidak dibangun.

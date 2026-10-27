@@ -26,7 +26,10 @@ use Illuminate\Support\Facades\DB;
  */
 class CounterTransactionService
 {
-    public function __construct(private readonly PricingService $pricing) {}
+    public function __construct(
+        private readonly PricingService $pricing,
+        private readonly FacilityEntitlementService $facilities,
+    ) {}
 
     /**
      * Create a counter sale: transaction, visitors, individual tickets,
@@ -134,6 +137,10 @@ class CounterTransactionService
             ])->save();
 
             $locked->forceFill(['status' => TransactionStatus::Paid])->save();
+
+            // The cash has actually been received, so every individual ticket
+            // now gets its auto-granted facility entitlement (idempotent).
+            $this->facilities->grantForTransaction($locked);
 
             AuditLog::record($cashier, 'counter_transaction.payment_confirmed', $locked, [
                 'transaction_code' => $locked->transaction_code,

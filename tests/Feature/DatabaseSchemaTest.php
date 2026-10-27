@@ -2,16 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Enums\FacilityEntitlementStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\TransactionSource;
+use App\Models\Facility;
 use App\Models\Payment;
 use App\Models\Ticket;
+use App\Models\TicketFacilityEntitlement;
 use App\Models\Transaction;
 use App\Models\TransactionCheckin;
 use App\Models\TransactionVehicle;
 use App\Models\VehicleType;
 use App\Models\Visitor;
+use Database\Seeders\FacilitySeeder;
 use Database\Seeders\TariffSeeder;
 use Database\Seeders\VehicleTypeSeeder;
 use Illuminate\Database\QueryException;
@@ -174,5 +178,52 @@ class DatabaseSchemaTest extends TestCase
         $this->assertSame(2000, (int) DB::table('vehicle_types')->where('code', 'motorcycle')->value('unit_tariff'));
         $this->assertSame(5000, (int) DB::table('vehicle_types')->where('code', 'car')->value('unit_tariff'));
         $this->assertSame(10000, (int) DB::table('vehicle_types')->where('code', 'bus_truck')->value('unit_tariff'));
+    }
+
+    public function test_facility_seeder_is_idempotent_and_keeps_one_initial_facility(): void
+    {
+        $this->seed(FacilitySeeder::class);
+        $this->seed(FacilitySeeder::class);
+
+        $this->assertSame(1, Facility::count());
+
+        $facility = Facility::where('code', 'FREE_TEA')->firstOrFail();
+
+        $this->assertSame('Minuman Gratis', $facility->name);
+        $this->assertTrue($facility->is_auto_granted);
+        $this->assertTrue($facility->active);
+    }
+
+    public function test_a_ticket_can_only_have_one_entitlement_per_facility(): void
+    {
+        $this->seed(FacilitySeeder::class);
+
+        $transaction = $this->makeTransaction();
+        $visitor = Visitor::create([
+            'transaction_id' => $transaction->id,
+            'full_name' => 'Budi Santoso',
+            'nik' => '3201234567890123',
+        ]);
+        $ticket = Ticket::create([
+            'transaction_id' => $transaction->id,
+            'visitor_id' => $visitor->id,
+        ]);
+        $facility = Facility::where('code', 'FREE_TEA')->firstOrFail();
+
+        TicketFacilityEntitlement::create([
+            'ticket_id' => $ticket->id,
+            'facility_id' => $facility->id,
+            'status' => FacilityEntitlementStatus::Granted,
+            'granted_at' => now(),
+        ]);
+
+        $this->expectException(QueryException::class);
+
+        TicketFacilityEntitlement::create([
+            'ticket_id' => $ticket->id,
+            'facility_id' => $facility->id,
+            'status' => FacilityEntitlementStatus::Granted,
+            'granted_at' => now(),
+        ]);
     }
 }

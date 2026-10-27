@@ -13,12 +13,12 @@ function Denied() {
   return (
     <section className="mx-auto max-w-2xl px-4 py-12">
       <h1 className="text-2xl font-semibold">Akses ditolak</h1>
-      <p className="mt-2 text-sm text-neutral-600">
+      <p className="mt-2 text-sm text-muted">
         Anda tidak berhak melihat transaksi loket ini.
       </p>
       <Link
         href="/profile"
-        className="mt-6 inline-block text-sm font-medium text-emerald-800 hover:underline"
+        className="mt-6 inline-block text-sm font-medium text-ocean hover:underline"
       >
         Kembali ke profil
       </Link>
@@ -28,9 +28,9 @@ function Denied() {
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-4 border-b border-neutral-100 py-2 last:border-b-0">
-      <dt className="text-sm text-neutral-500">{label}</dt>
-      <dd className="text-sm text-neutral-900">{children}</dd>
+    <div className="flex justify-between gap-4 border-b border-line py-2 last:border-b-0">
+      <dt className="text-sm text-muted">{label}</dt>
+      <dd className="text-sm text-foreground">{children}</dd>
     </div>
   );
 }
@@ -79,7 +79,7 @@ export default async function CounterTransactionDetailPage({
           <h1 className="text-2xl font-semibold">
             {transaction.transaction_code}
           </h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-1 text-sm text-muted">
             {transaction.source_label} · kunjungan{" "}
             {transaction.visit_date ?? "—"}
           </p>
@@ -90,7 +90,7 @@ export default async function CounterTransactionDetailPage({
         />
       </div>
 
-      <dl className="mt-6 rounded-lg border border-neutral-200 bg-white p-4">
+      <dl className="mt-6 rounded-lg border border-line bg-surface p-4">
         <DetailRow label="Kasir">
           {transaction.cashier?.name ?? "—"}
         </DetailRow>
@@ -115,7 +115,7 @@ export default async function CounterTransactionDetailPage({
       <div className="mt-8">
         <h2 className="text-lg font-semibold">Pembayaran</h2>
         {transaction.payment ? (
-          <dl className="mt-3 rounded-lg border border-neutral-200 bg-white p-4">
+          <dl className="mt-3 rounded-lg border border-line bg-surface p-4">
             <DetailRow label="Metode">
               {transaction.payment.method_label}
             </DetailRow>
@@ -138,7 +138,7 @@ export default async function CounterTransactionDetailPage({
             </DetailRow>
           </dl>
         ) : (
-          <p className="mt-3 text-sm text-neutral-500">
+          <p className="mt-3 text-sm text-muted">
             Belum ada catatan pembayaran.
           </p>
         )}
@@ -150,12 +150,12 @@ export default async function CounterTransactionDetailPage({
           {transaction.visitors.map((visitor, index) => (
             <li
               key={visitor.id}
-              className="flex items-center justify-between rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+              className="flex items-center justify-between rounded-md border border-line bg-surface px-3 py-2 text-sm"
             >
-              <span className="text-neutral-900">
+              <span className="text-foreground">
                 {index + 1}. {visitor.full_name}
               </span>
-              <span className="font-mono text-xs text-neutral-500">
+              <span className="font-mono text-xs text-muted">
                 {visitor.masked_nik}
               </span>
             </li>
@@ -166,7 +166,7 @@ export default async function CounterTransactionDetailPage({
       <div className="mt-8">
         <h2 className="text-lg font-semibold">Kendaraan</h2>
         {transaction.vehicles.length === 0 ? (
-          <p className="mt-3 text-sm text-neutral-500">
+          <p className="mt-3 text-sm text-muted">
             Tidak ada kendaraan pada transaksi ini.
           </p>
         ) : (
@@ -174,13 +174,13 @@ export default async function CounterTransactionDetailPage({
             {transaction.vehicles.map((vehicle) => (
               <li
                 key={vehicle.vehicle_type_id}
-                className="flex items-center justify-between rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                className="flex items-center justify-between rounded-md border border-line bg-surface px-3 py-2 text-sm"
               >
-                <span className="text-neutral-900">
+                <span className="text-foreground">
                   {vehicle.name} ({vehicle.quantity} ×{" "}
                   {formatRupiah(vehicle.unit_tariff)})
                 </span>
-                <span className="tabular-nums text-neutral-700">
+                <span className="tabular-nums text-foreground">
                   {formatRupiah(vehicle.subtotal)}
                 </span>
               </li>
@@ -200,15 +200,15 @@ export default async function CounterTransactionDetailPage({
             return (
               <li
                 key={ticket.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface px-3 py-2 text-sm"
               >
-                <span className="font-mono text-neutral-900">
+                <span className="font-mono text-foreground">
                   {ticket.ticket_code}
                 </span>
-                <span className="text-neutral-500">{visitor?.full_name}</span>
+                <span className="text-muted">{visitor?.full_name}</span>
                 <span className="flex items-center gap-2">
                   {ticket.printed_at ? (
-                    <span className="text-xs text-neutral-500">
+                    <span className="text-xs text-muted">
                       dicetak{" "}
                       {new Date(ticket.printed_at).toLocaleString("id-ID")}
                     </span>
@@ -234,13 +234,13 @@ export default async function CounterTransactionDetailPage({
       <div className="mt-8 flex gap-4 text-sm">
         <Link
           href="/counter"
-          className="font-medium text-emerald-800 hover:underline"
+          className="font-medium text-ocean hover:underline"
         >
           Transaksi baru
         </Link>
         <Link
           href="/profile"
-          className="text-neutral-600 hover:underline"
+          className="text-muted hover:underline"
         >
           Profil
         </Link>

@@ -15,7 +15,7 @@ export default function AdminNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-wrap gap-2 border-b border-neutral-200 pb-3 text-sm">
+    <nav className="flex flex-wrap gap-2 border-b border-line pb-3 text-sm">
       {LINKS.map((link) => {
         const active = pathname === link.href;
 
@@ -26,8 +26,8 @@ export default function AdminNav() {
             aria-current={active ? "page" : undefined}
             className={
               active
-                ? "rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 font-medium text-emerald-900"
-                : "rounded-md border border-neutral-200 px-3 py-1.5 text-neutral-700 hover:border-emerald-300 hover:text-neutral-900"
+                ? "inline-flex min-h-11 items-center rounded-md border border-ocean/40 bg-surface-soft px-3 font-medium text-ocean"
+                : "inline-flex min-h-11 items-center rounded-md border border-line px-3 text-muted hover:border-ocean/40 hover:text-ocean"
             }
           >
             {link.label}

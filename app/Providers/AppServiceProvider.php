@@ -30,5 +30,23 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(120)->by($key);
         });
+
+        // Counter redemption: same idea for the redemption code. The token is
+        // random too, and an authenticated officer keeps a per-minute ceiling so
+        // brute-forcing a code is pointless. Keyed per officer + IP.
+        RateLimiter::for('counter-redemption', function (Request $request): Limit {
+            $key = 'counter-redemption:'.($request->user()?->id ?? 'guest').'|'.$request->ip();
+
+            return Limit::perMinute(120)->by($key);
+        });
+
+        // Counter facility claim: the wristband ticket code is a credential,
+        // so the same per-officer + IP ceiling applies. A valid code is not
+        // guessable, but the limiter keeps brute force pointless.
+        RateLimiter::for('counter-facility', function (Request $request): Limit {
+            $key = 'counter-facility:'.($request->user()?->id ?? 'guest').'|'.$request->ip();
+
+            return Limit::perMinute(120)->by($key);
+        });
     }
 }

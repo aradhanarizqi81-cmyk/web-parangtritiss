@@ -26,6 +26,8 @@ frontend/
       api/counter/transactions/[id]/route.ts          # BFF: detail
       api/counter/transactions/[id]/confirm-payment/route.ts
       api/counter/transactions/[id]/print/route.ts
+      api/counter/redemptions/{lookup,confirm,print}/route.ts  # BFF: penukaran
+      api/counter/facilities/{lookup,claim}/route.ts  # BFF: klaim fasilitas
       api/booking/tariffs/route.ts                    # BFF: tarif booking
       api/bookings/route.ts                           # BFF: daftar + buat booking
       api/bookings/[id]/route.ts                      # BFF: detail booking
@@ -34,7 +36,8 @@ frontend/
       api/gate/check-in/route.ts                      # BFF: validasi gerbang
       api/admin/reports/{visits,transactions,
         vehicles,identities}/export/route.ts          # BFF: unduh CSV laporan
-      login/page.tsx                                  # form login (client)
+      login/page.tsx                                  # form login wisatawan (client)
+      staff/login/page.tsx                            # portal operasional (server) + staff-login-form.tsx
       register/page.tsx                               # form registrasi (client)
       profile/page.tsx                                # profil (server, perlu sesi)
       admin/layout.tsx                                # gerbang admin + sub-navigasi
@@ -46,14 +49,18 @@ frontend/
       counter/page.tsx                                # loket (server) + counter-workspace.tsx
       counter/transactions/[id]/page.tsx              # detail (server) + transaction-actions.tsx
       counter/transactions/[id]/print/page.tsx        # halaman cetak tiket
+      counter/penukaran/page.tsx                      # meja penukaran + redemption-workspace.tsx
+      counter/fasilitas/page.tsx                      # meja fasilitas + facility-workspace.tsx
       booking/page.tsx                                # form booking (server) + booking-form.tsx
       booking/history/page.tsx                        # riwayat booking (server)
       booking/[id]/page.tsx                           # detail (server) + payment-simulation.tsx
       booking/[id]/print/page.tsx                     # halaman cetak tiket booking
+      booking/[id]/print-tickets-action.tsx           # tombol catat cetak tiket
       gate/page.tsx                                   # gerbang (server) + gate-checkin-form.tsx
-      layout.tsx page.tsx globals.css
+      layout.tsx page.tsx globals.css print.css
     components/       site-header.tsx, logout-button.tsx, field.tsx, barcode-svg.tsx
-    components/counter/  status-badge.tsx, ticket-card.tsx, print-button.tsx
+    components/counter/  status-badge.tsx, wristband-card.tsx, ticket-card.tsx,
+                         print-button.tsx
     components/admin/    admin-nav.tsx, report-filter.tsx, pagination.tsx,
                          export-link.tsx, ui.tsx
     lib/
@@ -61,7 +68,8 @@ frontend/
       auth/           session.ts, guard.ts, roles.ts
       pricing/        tariffs.ts (+ tariffs.test.ts)   # tarif + estimasi + formatRupiah
       barcode/        code128.ts (+ code128.test.ts)   # encoder Code128-B (SVG)
-      counter/        types.ts, server.ts
+      counter/        types.ts, server.ts, redemption.ts (+ redemption.test.ts),
+                      facility.ts (+ facility.test.ts)
       booking/        types.ts, server.ts, status.ts (+ status.test.ts)
       gate/           types.ts, status.ts (+ status.test.ts)
       reports/        types.ts, period.ts (+ period.test.ts), format.ts, server.ts
@@ -159,6 +167,45 @@ menyembunyikan elemen UI bukan kontrol keamanan. `canUseDashboard()`,
 `lib/auth/roles.ts` hanya gerbang tampilan; backend tetap menolak peran lain
 lewat middleware `role:...` + policy.
 
+## Dua portal masuk
+
+Ada dua pintu masuk yang memakai **satu sistem autentikasi yang sama**
+(`POST /api/v1/auth/login` lewat BFF `POST /api/auth/login`), bukan dua
+mekanisme sesi:
+
+| Portal | Rute | Untuk | Setelah masuk |
+| --- | --- | --- | --- |
+| Wisatawan | `/login` | `visitor` | `/profile` (tetap seperti semula) |
+| Operasional | `/staff/login` | `admin`, `cashier`, `gate_staff` | sesuai peran (lihat pemetaan di bawah) |
+
+`staffDestination()` di `lib/auth/roles.ts` memetakan role ke tujuan pasca-login
+portal operasional: `admin` → `/admin`, `cashier` → `/counter`,
+`gate_staff` → `/gate`, dan `visitor` → `null` (ditolak).
+
+Aturan pemisahan portal:
+
+1. **Role selalu berasal dari backend.** Form hanya mengirim `email` dan
+   `password`; tidak ada field `role` yang dikirim, dan tidak ada role yang
+   dibaca dari input pengguna. Tujuan pengalihan dihitung dari `role` pada
+   respons login (atau `/auth/me`) yang sudah diverifikasi Laravel.
+2. **Tidak ada parameter pengalihan.** `/staff/login` tidak menerima `?next=`
+   atau URL tujuan dari pengguna, sehingga tidak ada open redirect. `?next=`
+   yang disisipkan manual diabaikan.
+3. **Wisatawan ditolak dari portal operasional.** Bila kredensial yang
+   dimasukkan milik akun `visitor`, sesi yang sudah dibuat **dicabut kembali**
+   lewat `POST /api/auth/logout`, pesan penolakan ditampilkan, dan pengguna
+   diarahkan memakai portal wisatawan. Wisatawan yang sudah masuk dan membuka
+   `/staff/login` melihat panel "Portal khusus pegawai" beserta tautan ke area
+   wisatawan dan tombol keluar.
+4. **Pegawai yang sudah masuk tidak melihat formulir.** Server component
+   `/staff/login` memanggil `getCurrentUser()`; bila role-nya pegawai, pengguna
+   langsung dialihkan ke halaman kerjanya, sehingga tidak ada lingkaran redirect
+   antara portal dan halaman tujuan.
+5. **Pemisahan portal hanya lapisan tampilan.** Backend tetap sumber kebenaran:
+   middleware `auth:sanctum` + `role:...` dan `TransactionPolicy` tidak berubah,
+   dan mengetik URL halaman terproteksi langsung tetap divalidasi ulang di
+   server (proxy hanya gerbang optimistis berbasis keberadaan cookie).
+
 ## Alur loket (Fase 5)
 
 Semua permintaan tetap lewat pola BFF: browser memanggil route handler Next.js
@@ -183,6 +230,52 @@ HttpOnly. Route handler yang mengubah data memakai `forwardToLaravel()`
 
 Detail kontrak endpoint ada di [`docs/API.md`](API.md).
 
+## Cetak gelang (desain & CSS cetak)
+
+Hasil cetak ketiga jalur (loket, penukaran, pratinjau booking) memakai satu
+komponen: `components/counter/wristband-card.tsx`. Komposisinya mengikuti
+gambar referensi **"Tiket Gelang Pantai Parangtritis"**: pita datar sangat
+memanjang (rasio ±8,4:1) yang terbagi enam zona — tab kunci berpasak,
+panel brand hijau laut (judul *Pantai Parangtritis* dominan + `YOGYAKARTA`,
+ikon pesisir dan ombak toska di tepi bawah), panel ivory berisi label
+*Tiket Individual*, kode tiket dan Code128 dari `ticket_code`, panel ivory
+tanggal kunjungan, panel ivory berpola ombak toska, dan tab kunci berlubang di
+ujung kanan. Semua tab/perekat menyatu sebagai bentuk gelang — bukan strip
+dekoratif terpisah. Gaya struktur, warna, dan tipografi
+terpusat di `app/print.css` (lewat custom property `--wb-*`); pemisah antar
+zona berupa garis putus-putus.
+
+- **Satu gelang per tiket.** `tickets.map(...)` — booking dengan beberapa
+  pengunjung menghasilkan beberapa gelang; kode tiket individual tampil di
+  setiap gelang dan barcode mengodekan kode tiket individual yang stabil saat
+  dicetak ulang. Barcode gelang ini adalah identitas tiket dan kunci input meja
+  fasilitas; ia bukan bukti hak, karena backend tetap memeriksa pembayaran,
+  check-in, tanggal, dan status hak.
+  `redemption_token` tetap khusus QR pengambilan gelang di loket dan
+  `barcode_token` tetap khusus check-in gerbang; keduanya tidak dicetak di
+  gelang ini. NIK (mentah maupun tersamar) tidak ikut tercetak — hanya nama
+  pengunjung ringkas di panel tanggal.
+- **Aturan cetak** terpusat di `app/print.css` (diimpor `layout.tsx`):
+  `@page { size: auto; margin: 8mm }`, tinggi minimum gelang lewat custom
+  property `--wristband-print-height` (24mm), `break-inside: avoid` per
+  gelang, dan `print-color-adjust: exact` agar warna panel ikut tercetak.
+  Lebar zona memakai **flex-grow proporsional** (bukan ukuran absolut),
+  sehingga proporsi referensi tetap terjaga berapa pun lebar media; ukuran
+  teks cetak memakai satuan pt/mm.
+  Di layar, pita berukuran minimal 640px dan pembungkusnya
+  (`.wristband-scroll`) dapat digulir horizontal di layar sempit agar layout
+  tidak pernah terpotong.
+- **Backend fasilitas tersedia; cetak fisik belum diverifikasi.** Hak fasilitas
+  melekat pada tiket individual dan diklaim lewat `/counter/fasilitas` (lihat
+  *Alur klaim fasilitas*). Code128 pada gelang tetap identitas tiket, bukan
+  bukti klaim. Ukuran media printer juga belum
+  dikonfigurasi; `@page` masih `size: auto`. Setelah ukuran roll pasti
+  diketahui, cukup ganti blok `@page` dan `--wristband-print-height` di
+  `print.css` — petunjuk lengkap ada di komentar kepala file tersebut.
+  Barcode SVG menggambar latar putih dan bar hitam sendiri, sehingga tetap
+  terlihat bila browser membuang background.
+
+
 ## Alur booking online (Fase 6)
 
 Booking online hanya untuk **wisatawan**; `admin` masuk sebagai pembaca
@@ -206,11 +299,22 @@ lewat middleware `role:visitor,admin` + policy.
    status, dan referensi; `success` menerbitkan tiket, `failure` membiarkan
    transaksi `pending` agar bisa dicoba lagi. Percobaan ulang setelah sukses
    dijawab `409`.
-5. Setelah `paid`, tombol "Cetak tiket" memanggil `POST /api/bookings/[id]/print`
-   (mencatat `printed_at` + audit) lalu membuka `/booking/[id]/print`, halaman
-   ramah-cetak yang memakai ulang `TicketCard`. Halaman cetak **tidak** mengklaim
-   tiket tercetak fisik.
-6. `/booking/history` menampilkan maksimal 50 booking terbaru (milik sendiri
+5. Setelah `paid`, tombol "Lihat Pratinjau Tiket" membuka
+   `/booking/[id]/print`, halaman pratinjau yang memakai `WristbandCard`
+   (desain gelang memanjang — lihat *Cetak gelang* di bawah — kode
+   penukaran tidak menggantikan barcode gerbang). Pencatatan cetak (`POST /api/bookings/[id]/print`) baru
+   terjadi saat tombol **Cetak Tiket** di halaman itu ditekan; bila pencatatan
+   gagal, dialog cetak tidak dibuka. Halaman cetak **tidak** mengklaim tiket
+   tercetak fisik.
+6. **Kode penukaran loket.** Setelah pembayaran sukses, `/booking/[id]` juga
+   menampilkan banner *Pembayaran berhasil* serta kartu **Kode penukaran
+   loket** berisi barcode Code128 (`components/barcode-svg.tsx`) beserta status
+   **Belum Ditukarkan** / **Sudah Ditukarkan**. `canShowRedemptionCode()` di
+   `lib/booking/status.ts` hanyalah gerbang tampilan: backend sendiri menahan
+   `redemption.token` sampai pembayaran sukses, mengisi nilainya dengan `RDM-`
+   + 24 karakter acak (bukan angka transaksi), dan tidak pernah
+   mengembalikannya kepada selain pemilik booking atau admin.
+7. `/booking/history` menampilkan maksimal 50 booking terbaru (milik sendiri
    untuk wisatawan, seluruh booking online untuk admin).
 
 Simulasi pembayaran adalah **akademik**, bukan gateway sungguhan; lihat
@@ -222,10 +326,11 @@ Halaman `/gate` hanya untuk `gate_staff` dan `admin`; `visitor`, `cashier`, dan
 anonim ditolak. `canUseGate()` hanya gerbang tampilan — backend menolak peran
 lain lewat middleware `role:gate_staff,admin` + policy.
 
-1. Halaman cetak tiket (`/counter/transactions/[id]/print` dan
-   `/booking/[id]/print`) merender **barcode Code128-B** dari `barcode_token`
-   transaksi lewat `components/barcode-svg.tsx` dan `lib/barcode/code128.ts`.
-   Token ditampilkan juga sebagai teks agar bisa diketik manual bila perlu.
+1. Gelang di halaman cetak (`/counter/transactions/[id]/print` dan
+   `/booking/[id]/print`) menampilkan Code128-B dari `tickets[].ticket_code`
+   sebagai identitas tiket individual. Token check-in gerbang tetap
+   `transactions.barcode_token` dan alur check-in tidak menggunakan kode
+   tiket atau `redemption_token`.
 2. `gate-checkin-form.tsx` menyediakan satu kolom teks yang siap menerima
    **pemindai barcode USB** (bertindak seperti keyboard dan menekan Enter),
    sehingga submit berjalan otomatis. Tersedia juga tombol "Validasi" untuk
@@ -250,7 +355,11 @@ middleware `role:admin` + policy menolak peran lain dengan `403`.
 
 1. Halaman adalah **server component** (`instant = false`) yang memanggil Laravel
    langsung lewat `lib/reports/server.ts` memakai cookie HttpOnly — sama seperti
-   halaman loket/booking, tanpa route handler JSON tambahan.
+   halaman loket/booking, tanpa route handler JSON tambahan. Tiap halaman
+   memanggil `await io()` (`next/cache`) sebelum rentang default dihitung, agar
+   `new Date()` di `lib/reports/period.ts` dibaca saat request dan bukan saat
+   prerender Cache Components, lalu mendeklarasikan `instant = false` di level
+   halaman supaya validasi instant navigation tidak menganggap blokir itu cacat.
 2. Filter (rentang tanggal, sumber, status, status pembayaran, kunjungan, dasar
    tanggal, baris per halaman) diubah lewat `components/admin/report-filter.tsx`
    (client) yang mendorong nilainya ke URL; halaman me-render ulang di server.
@@ -272,6 +381,88 @@ middleware `role:admin` + policy menolak peran lain dengan `403`.
    dikirim ke browser, termasuk pada ekspor CSV.
 
 Kontrak endpoint lengkap ada di [`docs/API.md`](API.md).
+
+## Alur penukaran tiket fisik
+
+Halaman `/counter/penukaran` hanya untuk `cashier` dan `admin`; `visitor`,
+`gate_staff`, dan anonim ditolak proxy, gerbang UI `canUseCounter()`, lalu
+middleware `role:cashier,admin` + policy di backend.
+
+1. **Pindai atau ketik.** Kolom `redemption_token` siap menerima pemindai
+   barcode USB (mengetik seperti keyboard lalu menekan Enter), disertai tombol
+   validasi untuk input manual. Kode tidak pernah dimasukkan ke URL — hanya ke
+   body POST same-origin, sehingga tidak tercatat di riwayat browser maupun log
+   akses. Kolom dikosongkan dan difokuskan lagi tiap kali selesai.
+2. **Pratinjau read-only.** Submit memanggil `POST /api/counter/redemptions/lookup`
+   (BFF) lalu menampilkan ringkasan pesanan: pemilik, tanggal kunjungan, jumlah
+   pengunjung, jumlah kendaraan, jumlah tiket, dan status pembayaran — semuanya
+   dari `RedemptionResource`, tanpa `simulation_reference` dan hanya dengan
+   `masked_nik`. Membuka pratinjau **tidak** mengubah status apa pun.
+3. **Konfirmasi terpisah.** Tombol "Konfirmasi Penukaran" hanya muncul bila
+   `can_redeem` dan memanggil `POST .../confirm`. Kegagalan backend ditampilkan
+   apa adanya (belum lunas `422`, sudah ditukarkan `409`, kode tak dikenal
+   `404`) lewat pesan galat `ApiError`, sementara `redemptionTone()` di
+   `lib/counter/redemption.ts` hanya menentukan warna kartu status.
+   Keputusan tetap di backend (row lock + pembaruan bersyarat
+   `WHERE redeemed_at IS NULL`), jadi tombol yang dinonaktifkan bukan kontrol.
+4. **Cetak gelang.** Setelah `redeemed`, gelang dirender **inline** memakai
+   `components/counter/wristband-card.tsx` — satu gelang per tiket, berisi
+   identitas Pantai Parangtritis + ornamen ombak, tanggal kunjungan, kode
+   tiket, nama pengunjung, dan barcode identitas tiket individual. Kode itu
+   menjadi kunci input meja fasilitas (lihat *Alur klaim fasilitas*).
+   Tombolnya `wristbandButtonLabel()`: "Cetak Gelang" lalu "Cetak Ulang
+   Gelang". Tombol memanggil `POST .../print` (mencatat `printed_at` + audit)
+   **baru** kemudian `window.print()`; karena gelang sudah berada di DOM sebelum
+   itu, dialog cetak selalu memuat gelang yang benar. Seluruh elemen lain memakai
+   varian `print:hidden`.
+5. **Cetak ulang aman.** Pencetakan ulang tidak membuat tiket baru, tidak
+   menggandakan penukaran, dan tidak membuat check-in; stempel waktu cetak
+   pertama dipertahankan dan hanya audit `_tickets_reprinted` yang ditambahkan.
+6. "Penukaran baru" mereset kolom dan mengembalikan fokus ke input untuk
+   pengunjung berikutnya.
+
+Kontrak endpoint lengkap ada di [`docs/API.md`](API.md).
+
+## Alur klaim fasilitas
+
+Halaman `/counter/fasilitas` hanya untuk `cashier` dan `admin`; `visitor`,
+`gate_staff`, dan anonim ditolak proxy, gerbang UI `canUseCounter()`, lalu
+middleware `role:cashier,admin` + policy di backend. Tautan masuk tersedia dari
+`/counter`.
+
+1. **Pindai kode tiket individual.** Kolom `ticket_code` menerima pemindai
+   barcode USB atau input manual (`TKT-YYYYMMDD-XXXXXXXX`). Kode tidak pernah
+   masuk ke URL; hanya ke body POST same-origin. Kode tiket berbeda dari
+   `redemption_token` (penukaran online) dan `barcode_token` (gerbang).
+2. **Pratinjau read-only.** Submit memanggil
+   `POST /api/counter/facilities/lookup` (BFF) dan menampilkan ringkasan tiket:
+   nama + `masked_nik` pengunjung, kode transaksi, tanggal kunjungan,
+   pembayaran, dan status check-in gerbang. Membuka pratinjau **tidak**
+   mengklaim fasilitas dan tidak menulis audit.
+3. **Daftar hak fasilitas.** Setiap hak menampilkan nama/kode, status
+   (`Tersedia`/`Sudah Diklaim`/`Dibatalkan`), waktu diberikan/diklaim, dan
+   `block_reason` dari backend (belum lunas, belum check-in, bukan tanggal
+   kunjungan, transaksi dibatalkan, fasilitas nonaktif, atau hak tidak ada).
+   `lib/counter/facility.ts` hanya menentukan nada tampilan
+   (`facilityTone()`) dan label tombol; keputusan tetap di backend.
+4. **Klaim terpisah.** Tombol `Klaim <nama fasilitas>` hanya muncul bila
+   `can_claim` dan memanggil `POST .../claim`. `422`/`409` ditampilkan apa
+   adanya, lalu pratinjau diambil ulang agar tombol tidak tetap aktif untuk aksi
+   yang mustahil (mis. sudah diklaim petugas lain). Klaim tidak membuat atau
+   mengubah check-in, status transaksi, maupun barcode gerbang.
+5. **Satu kali per tiket.** Setelah berhasil, status berubah menjadi
+   `Sudah Diklaim` dan tombol klaim hilang. Membuka ulang tiket yang sama
+   menampilkan riwayat klaim, bukan aksi baru.
+6. "Tiket baru" mereset kolom dan mengembalikan fokus ke input.
+
+Hak dibuat otomatis hanya setelah pembayaran benar-benar berhasil (booking
+online maupun konfirmasi tunai loket). Katalog awal berasal dari
+`php artisan db:seed --class=FacilitySeeder`; transaksi lunas lama dapat diisi
+dengan `php artisan facilities:backfill` (manual, idempoten, mendukung
+`--dry-run`).
+
+Spesifikasi browser ada di `frontend/e2e/facilities.spec.ts` dan memerlukan
+database QA yang sudah di-seed `FacilitySeeder`.
 
 ## Menjalankan
 
@@ -306,8 +497,10 @@ npm run build
 
 ## Belum termasuk cakupan
 
-Pembatalan booking, pengelolaan pengguna, dan ekspor berkas selain CSV
-(PDF/Excel) tidak dibuat pada fase ini. Pembayaran memakai simulasi akademik,
-bukan gateway sungguhan. Pemindai barcode memakai perangkat USB keyboard-wedge
-standar; tidak ada dukungan kamera/QR khusus. Laporan identitas hanya
-menyediakan NIK tersamarkan — tidak ada mekanisme membuka NIK penuh.
+Pembatalan booking belum memiliki endpoint khusus; bila status transaksi diubah
+menjadi `cancelled`, hak fasilitas yang belum diklaim otomatis dibatalkan dan
+yang sudah diklaim dipertahankan. Pengelolaan pengguna dan ekspor berkas selain
+CSV (PDF/Excel) tidak dibuat pada fase ini. Pembayaran memakai simulasi
+akademik, bukan gateway sungguhan. Pemindai barcode memakai perangkat USB
+keyboard-wedge standar; tidak ada dukungan kamera/QR khusus. Laporan identitas
+hanya menyediakan NIK tersamarkan — tidak ada mekanisme membuka NIK penuh.

@@ -7,6 +7,8 @@ const STYLES: Record<string, string> = {
   printed: "border-sky-200 bg-sky-50 text-sky-800",
   used: "border-emerald-200 bg-emerald-50 text-emerald-800",
   void: "border-red-200 bg-red-50 text-red-700",
+  granted: "border-amber-200 bg-amber-50 text-amber-800",
+  redeemed: "border-emerald-200 bg-emerald-50 text-emerald-800",
   success: "border-emerald-200 bg-emerald-50 text-emerald-800",
   failed: "border-red-200 bg-red-50 text-red-700",
 };

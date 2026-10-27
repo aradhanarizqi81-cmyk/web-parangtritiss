@@ -183,6 +183,71 @@ class TransactionPolicy
 
     /*
     |--------------------------------------------------------------------------
+    | Counter redemption abilities (penukaran tiket fisik)
+    |--------------------------------------------------------------------------
+    |
+    | Online bookings are collected as physical wristbands at the counter. The
+    | transaction is resolved from the scanned redemption token inside the
+    | service, so these are class-level abilities: they answer "may this user
+    | work the redemption desk at all?". Visitor and gate accounts are denied.
+    |
+    */
+
+    /**
+     * Look up an online booking by its redemption token (read-only preview).
+     */
+    public function lookupRedemption(User $user): bool
+    {
+        return $user->hasRole(Role::Cashier, Role::Admin);
+    }
+
+    /**
+     * Confirm a redemption. "Only paid" and "only once" are state rules enforced
+     * atomically by the service (422 / 409).
+     */
+    public function confirmRedemption(User $user): bool
+    {
+        return $user->hasRole(Role::Cashier, Role::Admin);
+    }
+
+    /**
+     * Record a print/reprint of the redeemed booking's wristbands.
+     */
+    public function printRedemption(User $user): bool
+    {
+        return $user->hasRole(Role::Cashier, Role::Admin);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Counter facility abilities (hak fasilitas per tiket)
+    |--------------------------------------------------------------------------
+    |
+    | The ticket is resolved from the individual wristband code inside the
+    | service, so these are class-level abilities. Only cashier/admin may work
+    | the facility desk; visitor and gate accounts are denied.
+    |
+    */
+
+    /**
+     * Look up a ticket and its facility entitlements (read-only preview).
+     */
+    public function lookupFacility(User $user): bool
+    {
+        return $user->hasRole(Role::Cashier, Role::Admin);
+    }
+
+    /**
+     * Claim a facility. Payment, date, check-in and availability are state
+     * rules enforced atomically by the service (422 / 409).
+     */
+    public function claimFacility(User $user): bool
+    {
+        return $user->hasRole(Role::Cashier, Role::Admin);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | Reporting abilities
     |--------------------------------------------------------------------------
     |

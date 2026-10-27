@@ -11,3 +11,12 @@ export function canSimulatePayment(status: string): boolean {
 export function canPrintTickets(status: string): boolean {
   return status === "paid" || status === "checked_in";
 }
+
+/**
+ * Kode penukaran (QR loket) hanya boleh tampil setelah pembayaran sukses.
+ * Backend juga menahan tokennya sampai lunas, jadi ini baris pertahanan
+ * kedua — bukan satu-satunya.
+ */
+export function canShowRedemptionCode(token: string | null): boolean {
+  return typeof token === "string" && token.length > 0;
+}

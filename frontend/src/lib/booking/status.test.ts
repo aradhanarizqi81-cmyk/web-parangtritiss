@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { canPrintTickets, canSimulatePayment } from "./status";
+import {
+  canPrintTickets,
+  canShowRedemptionCode,
+  canSimulatePayment,
+} from "./status";
 
 describe("canSimulatePayment", () => {
   it("hanya mengizinkan transaksi yang masih menunggu pembayaran", () => {
@@ -22,5 +26,16 @@ describe("canPrintTickets", () => {
   it("menolak cetak sebelum lunas", () => {
     expect(canPrintTickets("pending")).toBe(false);
     expect(canPrintTickets("cancelled")).toBe(false);
+  });
+});
+
+describe("canShowRedemptionCode", () => {
+  it("menampilkan kode penukaran setelah pembayaran sukses", () => {
+    expect(canShowRedemptionCode("RDM-ABCDEFGHIJKLMNOPQRSTUVWXYZ")).toBe(true);
+  });
+
+  it("tidak pernah menampilkan QR/barcode penukaran sebelum pembayaran sukses", () => {
+    expect(canShowRedemptionCode(null)).toBe(false);
+    expect(canShowRedemptionCode("")).toBe(false);
   });
 });

@@ -16,7 +16,7 @@ export default async function GatePage() {
     return (
       <section className="mx-auto max-w-2xl px-4 py-12">
         <h1 className="text-2xl font-semibold">Akses ditolak</h1>
-        <p className="mt-2 text-sm text-neutral-600">
+        <p className="mt-2 text-sm text-muted">
           Anda tidak berhak melakukan validasi di gerbang.
         </p>
       </section>
@@ -25,11 +25,11 @@ export default async function GatePage() {
 
   return (
     <section className="mx-auto max-w-2xl px-4 py-12">
-      <p className="text-xs uppercase tracking-wide text-neutral-500">
+      <p className="text-xs uppercase tracking-wide text-muted">
         Petugas gerbang
       </p>
       <h1 className="text-2xl font-semibold">Validasi tiket</h1>
-      <p className="mt-2 text-sm text-neutral-600">
+      <p className="mt-2 text-sm text-muted">
         Pindai barcode pada tiket, atau ketik tokennya lalu tekan Validasi.
         Setiap barcode mewakili satu transaksi/rombongan.
       </p>

@@ -1,11 +1,15 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import BarcodeSvg from "@/components/barcode-svg";
 import StatusBadge from "@/components/counter/status-badge";
 import PaymentSimulation from "./payment-simulation";
-import PrintTicketsAction from "./print-tickets-action";
 import { getCurrentUser } from "@/lib/auth/guard";
 import { canUseBooking } from "@/lib/auth/roles";
-import { canPrintTickets, canSimulatePayment } from "@/lib/booking/status";
+import {
+  canPrintTickets,
+  canShowRedemptionCode,
+  canSimulatePayment,
+} from "@/lib/booking/status";
 import { fetchBooking } from "@/lib/booking/server";
 import { formatRupiah } from "@/lib/pricing/tariffs";
 
@@ -20,8 +24,8 @@ function DetailRow({
 }) {
   return (
     <div className="flex justify-between gap-4 py-1.5">
-      <dt className="text-neutral-500">{label}</dt>
-      <dd className="text-right text-neutral-900">{children}</dd>
+      <dt className="text-muted">{label}</dt>
+      <dd className="text-right text-foreground">{children}</dd>
     </div>
   );
 }
@@ -42,7 +46,7 @@ export default async function BookingDetailPage({
     return (
       <section className="mx-auto max-w-2xl px-4 py-12">
         <h1 className="text-2xl font-semibold">Akses ditolak</h1>
-        <p className="mt-2 text-sm text-neutral-600">
+        <p className="mt-2 text-sm text-muted">
           Anda tidak berhak melihat booking ini.
         </p>
       </section>
@@ -65,7 +69,7 @@ export default async function BookingDetailPage({
         </p>
         <Link
           href="/booking/history"
-          className="mt-6 inline-block text-sm font-medium text-emerald-800 hover:underline"
+          className="mt-6 inline-block text-sm font-medium text-ocean hover:underline"
         >
           Kembali ke riwayat booking
         </Link>
@@ -78,12 +82,15 @@ export default async function BookingDetailPage({
   const canPay = isOwner && canSimulatePayment(booking.status);
   const canPrint = canPrintTickets(booking.status);
   const reference = booking.payment?.simulation_reference ?? null;
+  const paymentSucceeded = booking.payment?.status === "success";
+  const redemptionToken = booking.redemption.token;
+  const showRedemptionCode = canShowRedemptionCode(redemptionToken);
 
   return (
     <section className="mx-auto max-w-3xl px-4 py-12">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-neutral-500">
+          <p className="text-xs uppercase tracking-wide text-muted">
             Booking online
           </p>
           <h1 className="font-mono text-xl font-semibold">
@@ -93,14 +100,24 @@ export default async function BookingDetailPage({
         <StatusBadge status={booking.status} label={booking.status_label} />
       </div>
 
-      {user.role === "admin" ? (
-        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Mode admin: hanya membaca. Membayar atau mencetak atas nama wisatawan
-          tidak tersedia bagi administrator.
+      {paymentSucceeded ? (
+        <p
+          role="status"
+          className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+        >
+          Pembayaran berhasil. Kode penukaran di bawah dipakai untuk mengambil
+          tiket fisik (gelang) di loket.
         </p>
       ) : null}
 
-      <dl className="mt-6 rounded-lg border border-neutral-200 bg-white p-4 text-sm">
+      {user.role === "admin" ? (
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Mode admin: hanya membaca. Membayar atas nama wisatawan tidak
+          tersedia bagi administrator.
+        </p>
+      ) : null}
+
+      <dl className="mt-6 rounded-lg border border-line bg-surface p-4 text-sm">
         <DetailRow label="Tanggal kunjungan">
           {booking.visit_date ?? "—"}
         </DetailRow>
@@ -124,16 +141,16 @@ export default async function BookingDetailPage({
         </DetailRow>
       </dl>
 
-      <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="mt-6 rounded-lg border border-line bg-surface p-4">
         <h2 className="text-lg font-semibold">Pengunjung</h2>
         <ul className="mt-3 space-y-2 text-sm">
           {booking.visitors.map((visitor) => (
             <li
               key={visitor.id}
-              className="flex justify-between gap-4 rounded-md border border-neutral-100 px-3 py-2"
+              className="flex justify-between gap-4 rounded-md border border-line px-3 py-2"
             >
               <span>{visitor.full_name}</span>
-              <span className="font-mono text-xs text-neutral-600">
+              <span className="font-mono text-xs text-muted">
                 {visitor.masked_nik}
               </span>
             </li>
@@ -142,7 +159,7 @@ export default async function BookingDetailPage({
       </section>
 
       {booking.vehicles.length > 0 ? (
-        <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-4">
+        <section className="mt-6 rounded-lg border border-line bg-surface p-4">
           <h2 className="text-lg font-semibold">Kendaraan</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {booking.vehicles.map((vehicle) => (
@@ -163,7 +180,7 @@ export default async function BookingDetailPage({
         </section>
       ) : null}
 
-      <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="mt-6 rounded-lg border border-line bg-surface p-4">
         <h2 className="text-lg font-semibold">Pembayaran</h2>
         {booking.payment ? (
           <dl className="mt-3 text-sm">
@@ -181,11 +198,44 @@ export default async function BookingDetailPage({
             </DetailRow>
           </dl>
         ) : (
-          <p className="mt-3 text-sm text-neutral-500">
+          <p className="mt-3 text-sm text-muted">
             Belum ada catatan pembayaran.
           </p>
         )}
       </section>
+
+      {showRedemptionCode && redemptionToken ? (
+        <section className="mt-6 rounded-lg border border-line bg-surface p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Kode penukaran loket</h2>
+            <StatusBadge
+              status={booking.redemption.redeemed ? "used" : "pending"}
+              label={booking.redemption.status_label}
+            />
+          </div>
+
+          <p className="mt-2 text-sm text-muted">
+            Kode ini hanya untuk mengambil tiket fisik (gelang) di loket. Bukan
+            untuk masuk gerbang — barcode gerbang tercetak terpisah di gelang.
+          </p>
+
+          <div className="mt-4 rounded-md border border-line bg-white p-3">
+            <BarcodeSvg value={redemptionToken} height={72} />
+            <p className="mt-2 break-all text-center font-mono text-xs text-muted">
+              {redemptionToken}
+            </p>
+          </div>
+
+          {booking.redemption.redeemed ? (
+            <p className="mt-3 text-xs text-muted">
+              Penukaran sudah dicatat di loket.
+              {booking.redemption.redeemed_at
+                ? " Anda tetap dapat melihat pratinjau tiket kapan saja."
+                : ""}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       {canPay && reference ? (
         <div className="mt-6">
@@ -199,14 +249,27 @@ export default async function BookingDetailPage({
         </p>
       ) : null}
 
-      <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="mt-6 rounded-lg border border-line bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Tiket</h2>
-          {canPrint ? <PrintTicketsAction bookingId={booking.id} /> : null}
+          {canPrint && booking.tickets.length > 0 ? (
+            <Link
+              href={`/booking/${booking.id}/print`}
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-ocean px-5 py-2 font-semibold text-ivory transition-colors hover:bg-ocean-dark"
+            >
+              Lihat Pratinjau Tiket
+            </Link>
+          ) : null}
         </div>
 
+        <p className="mt-2 text-sm text-muted">
+          Pratinjau menampilkan desain gelang dan barcode kode tiket
+          individual. Kode penukaran di atas hanya untuk mengambil tiket fisik
+          di loket.
+        </p>
+
         {booking.tickets.length === 0 ? (
-          <p className="mt-3 text-sm text-neutral-500">
+          <p className="mt-3 text-sm text-muted">
             Tiket diterbitkan otomatis setelah pembayaran berhasil.
           </p>
         ) : (
@@ -214,7 +277,7 @@ export default async function BookingDetailPage({
             {booking.tickets.map((ticket) => (
               <li
                 key={ticket.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-neutral-100 px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line px-3 py-2"
               >
                 <span className="font-mono text-xs">{ticket.ticket_code}</span>
                 <StatusBadge
@@ -230,7 +293,7 @@ export default async function BookingDetailPage({
       <div className="mt-6">
         <Link
           href="/booking/history"
-          className="text-sm font-medium text-emerald-800 hover:underline"
+          className="text-sm font-medium text-ocean hover:underline"
         >
           Kembali ke riwayat booking
         </Link>

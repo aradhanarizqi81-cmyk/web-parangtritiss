@@ -70,6 +70,12 @@ Metadata hanya memuat konteks (mis. tarif lama → baru) tanpa NIK mentah.
   otomatis.
 - Tampilan berbasis peran hanya untuk pengalaman pengguna; otorisasi tetap
   ditegakkan di backend.
+- Portal wisatawan (`/login`) dan portal operasional (`/staff/login`) memakai
+  **satu sistem autentikasi yang sama**; tidak ada mekanisme sesi kedua.
+  `/staff/login` tidak menerima URL pengalihan dari pengguna (tanpa open
+  redirect), peran tidak pernah dikirim dari form, tujuan pengalihan dihitung
+  dari identitas yang diverifikasi backend, dan akun `visitor` ditolak
+  (sesinya langsung dicabut). Detail: [`docs/FRONTEND.md`](FRONTEND.md).
 - Detail: [`docs/FRONTEND.md`](FRONTEND.md).
 
 ## Transaksi loket, pembayaran tunai, dan tiket (Fase 5)
@@ -189,6 +195,96 @@ Metadata hanya memuat konteks (mis. tarif lama → baru) tanpa NIK mentah.
 - Ekspor CSV diteruskan lewat route handler BFF same-origin; token sesi
   HttpOnly tetap tidak terlihat oleh browser (lihat [`FRONTEND.md`](FRONTEND.md)).
 - Pemeriksaan tambahan: `tests/Feature/AdminReportTest.php`.
+
+## Penukaran tiket fisik (counter redemption)
+
+- **Token terpisah dari barcode gerbang.** `transactions.redemption_token`
+  berbentuk `RDM-` + 24 karakter acak (unik, nullable), dibuat satu kali saat
+  booking dibuat dan **tidak pernah diregenerasi** ketika halaman booking
+  dibuka atau dipratinjau. Token penukaran tidak pernah disetel menjadi token
+  check-in, dan `barcode_token`/`transaction_checkins` tidak pernah disentuh
+  oleh alur ini. Transaksi `source=counter` selalu `NULL`.
+- **Tanpa data pribadi, tidak dapat ditebak.** Token tidak memuat NIK, nama,
+  maupun angka transaksi yang berurutan; panjang dan bentuknya konstan sehingga
+  tidak dapat dibedakan dari tebakan. NIK mentah tidak pernah masuk ke barcode,
+  URL, log, maupun respons — pengunjung selalu tampil `masked_nik`.
+- **Privasi kode penukaran.** Pada `GET /bookings/{id}` token hanya disertakan
+  **setelah pembayaran sukses** dan hanya untuk pemilik booking (admin boleh
+  membaca booking apa pun); membaca booking milik orang lain dijawab `403`,
+  sehingga QR milik satu pengunjung tidak dapat diambil pengunjung lain. Kode
+  tidak pernah dikirim lewat URL/`query` sehingga tidak tercatat di riwayat
+  browser maupun log akses, dan endpoint penukaran tidak menerima
+  `transaction_id` apa pun.
+- **Hanya booking lunas.** `lookup` murni baca dan tidak pernah menandai
+  booking ditukarkan; `confirm` menolak `422` bila pembayaran belum `success`
+  atau tiket belum diterbitkan. `can_redeem`/`can_reprint`/`block_reason` pada
+  respons hanyalah gerbang tampilan.
+- **Tidak bisa dobel.** `confirm` mengunci baris (`lockForUpdate`) lalu
+  memakai pembaruan bersyarat `WHERE redeemed_at IS NULL`, sehingga dua
+  permintaan paralel tetap menghasilkan **satu** penukaran — yang kalah
+  dijawab `409`. Tombol di UI boleh dinonaktifkan, tetapi keputusan tetap ada
+  di database.
+- **Penukaran ≠ check-in.** Alur ini tidak pernah membuat baris
+  `transaction_checkins` maupun mengubah `transactions.status`; check-in gerbang
+  tetap memakai `barcode_token` miliknya sendiri.
+- **Cetak ulang aman.** `print` hanya mengisi `printed_at` (nilai pertama
+  dipertahankan) dan status `printed`; tidak membuat tiket, penukaran, atau
+  check-in ganda, dan selalu tercatat di audit sebagai
+  `_tickets_reprinted`.
+- **Tanpa referensi simulasi.** `RedemptionResource` sengaja tidak memuat
+  `simulation_reference` — rahasia milik pengunjung, tidak perlu terlihat oleh
+  meja loket.
+- **Dicatat untuk audit.** `counter_redemption.completed`,
+  `counter_redemption.tickets_printed`, dan
+  `counter_redemption.tickets_reprinted` disertai `user_id`, `entity_type`,
+  `entity_id`, kode transaksi, dan jumlah tiket — tanpa token, NIK, maupun
+  referensi pembayaran.
+- **Dibatasi laju.** Rate limiter `counter-redemption` (120/menit per petugas +
+  IP) membuat menebak kode percuma.
+- Pemeriksaan tambahan: `tests/Feature/RedemptionTest.php`.
+
+## Klaim fasilitas per tiket (Fase 10)
+
+- **Kunci adalah kode tiket individual.** `tickets.ticket_code` dibuat acak
+  berformat `TKT-YYYYMMDD-XXXXXXXX` dan hanya dipakai untuk mencari tiket di
+  meja fasilitas. Klien tidak pernah mengirim `transaction_id`,
+  `entitlement_id`, status, atau id petugas; semuanya diturunkan backend.
+  `barcode_token` gerbang dan `redemption_token` online bukan kunci yang sah dan
+  ditolak validasi. Kode tidak pernah dikirim lewat URL/`query`.
+- **Hak hanya lahir setelah pembayaran nyata.** `FacilityEntitlementService`
+  memeriksa `transactions.status` (`paid`/`checked_in`), bukan status tiket,
+  dan `payments.status = success`. Pemberian memakai `firstOrCreate` + unique
+  `(ticket_id, facility_id)`, sehingga retry pembayaran, backfill, atau
+  permintaan berulang tidak menggandakan hak.
+- **Pratinjau tidak menulis.** `lookup` murni baca: tidak mengubah status,
+  tidak membuat check-in, dan tidak menulis audit. `can_claim`/`block_reason`
+  adalah gerbang tampilan yang dihitung dari data backend.
+- **Klaim tidak pernah membuat check-in.** Kebenaran check-in adalah keberadaan
+  baris `transaction_checkins`, bukan status yang dikirim frontend. Klaim juga
+  menolak transaksi `cancelled`, pembayaran bukan `success`, tanggal kunjungan
+  bukan hari ini pada `config('visit.timezone')`, fasilitas nonaktif, hak
+  `void`, dan hak yang tidak ada.
+- **Tidak bisa dobel.** Klaim berjalan dalam transaksi database dengan row lock
+  pada tiket/transaksi/pembayaran/hak, lalu pembaruan bersyarat
+  `WHERE status = 'granted' AND redeemed_at IS NULL`. Dua permintaan paralel
+  menghasilkan **satu** klaim; yang kalah dijawab `409`. Unique
+  `(ticket_id, facility_id)` menjadi lapisan kedua. Audit
+  `counter_facility.redeemed` hanya ditulis untuk klaim yang benar-benar
+  berhasil.
+- **Pembatalan aman.** Saat `transactions.status` berubah menjadi `cancelled`,
+  hook model membatalkan hak yang masih `granted` dan belum `redeemed`.
+  Riwayat klaim yang sudah terjadi **tidak** dihapus atau ditulis ulang.
+- **Tanpa kebocoran data.** Respons meja fasilitas hanya memuat `masked_nik`
+  (NIK mentah tidak pernah keluar), tidak memuat `barcode_token`,
+  `redemption_token`, maupun referensi simulasi pembayaran. Audit hanya memuat
+  kode transaksi dan kode/nama fasilitas.
+- **Dibatasi laju.** Rate limiter `counter-facility` (120/menit per petugas +
+  IP) membatasi percobaan menebak kode.
+- **Backfill manual.** `facilities:backfill` tidak pernah dipanggil otomatis
+  oleh migration/seeder, mendukung `--dry-run`, idempoten, dan menolak berjalan
+  di production tanpa `--force`.
+- Pemeriksaan tambahan: `tests/Feature/FacilityRedemptionTest.php` dan
+  `tests/Feature/DatabaseSchemaTest.php`.
 
 ## CORS
 

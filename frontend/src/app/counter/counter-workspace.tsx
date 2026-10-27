@@ -19,7 +19,7 @@ import type { CounterTransaction } from "@/lib/counter/types";
 type VisitorRow = { full_name: string; nik: string };
 
 const inputClass =
-  "w-full rounded-md border border-neutral-300 bg-white px-3 py-2 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600";
+  "w-full min-w-0 rounded-md border border-line bg-surface px-3 py-2 text-base text-foreground outline-none transition focus:border-ocean focus:ring-1 focus:ring-ocean";
 
 /**
  * Tanggal lokal hari ini (YYYY-MM-DD), tanpa terpengaruh UTC.
@@ -155,21 +155,12 @@ export default function CounterWorkspace() {
   }
 
   if (tariffs === null) {
-    return <p className="text-sm text-neutral-500">Memuat tarif…</p>;
+    return <p className="text-sm text-muted">Memuat tarif…</p>;
   }
 
   return (
     <form onSubmit={onSubmit} className="space-y-8" noValidate>
-      {formError ? (
-        <p
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
-          {formError}
-        </p>
-      ) : null}
-
-      <section className="rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="rounded-lg border border-line bg-surface p-4">
         <Field id="visit_date" label="Tanggal kunjungan" error={errors.visit_date?.[0]}>
           <input
             id="visit_date"
@@ -186,19 +177,19 @@ export default function CounterWorkspace() {
         </Field>
       </section>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="rounded-lg border border-line bg-surface p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Pengunjung</h2>
           <button
             type="button"
             onClick={addVisitor}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-3 text-sm font-medium text-ocean transition hover:border-ocean/50 hover:bg-surface-soft"
           >
             Tambah pengunjung
           </button>
         </div>
 
-        <p className="mt-1 text-xs text-neutral-500">
+        <p className="mt-1 text-xs text-muted">
           NIK wajib 16 angka. NIK disimpan terenkripsi dan tidak pernah masuk ke
           URL, barcode, atau log.
         </p>
@@ -207,7 +198,7 @@ export default function CounterWorkspace() {
           {visitors.map((visitor, index) => (
             <li
               key={index}
-              className="grid gap-3 rounded-md border border-neutral-200 p-3 sm:grid-cols-[1fr_1fr_auto]"
+              className="grid gap-3 rounded-md border border-line p-3 sm:grid-cols-[1fr_1fr_auto]"
             >
               <Field
                 id={`visitor-${index}-name`}
@@ -248,7 +239,7 @@ export default function CounterWorkspace() {
                   type="button"
                   onClick={() => removeVisitor(index)}
                   disabled={visitors.length <= 1}
-                  className="rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 disabled:opacity-40"
+                  className="inline-flex min-h-11 items-center rounded-md border border-line px-3 text-sm font-medium text-[#8b5148] transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                   aria-label={`Hapus pengunjung ${index + 1}`}
                 >
                   Hapus
@@ -259,15 +250,15 @@ export default function CounterWorkspace() {
         </ol>
       </section>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-lg font-semibold">Kendaraan</h2>
-        <p className="mt-1 text-xs text-neutral-500">
+        <p className="mt-1 text-xs text-muted">
           Isi jumlah kendaraan yang masuk. Kosongkan bila tidak ada.
         </p>
 
         <div className="mt-4 space-y-3">
           {tariffs.vehicle_types.length === 0 ? (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-muted">
               Belum ada jenis kendaraan aktif.
             </p>
           ) : (
@@ -277,10 +268,10 @@ export default function CounterWorkspace() {
                 className="flex items-center justify-between gap-4"
               >
                 <div>
-                  <p className="text-sm font-medium text-neutral-800">
+                  <p className="text-sm font-medium text-foreground">
                     {type.name}
                   </p>
-                  <p className="text-xs text-neutral-500">
+                  <p className="text-xs text-muted">
                     {formatRupiah(type.unit_tariff)} per unit
                   </p>
                 </div>
@@ -294,7 +285,7 @@ export default function CounterWorkspace() {
                   onChange={(event) =>
                     updateQuantity(type.id, event.target.value)
                   }
-                  className="w-24 rounded-md border border-neutral-300 bg-white px-3 py-2 text-right outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                  className="w-24 shrink-0 rounded-md border border-line bg-surface px-3 py-2 text-right text-foreground outline-none transition focus:border-ocean focus:ring-1 focus:ring-ocean"
                 />
               </div>
             ))
@@ -302,9 +293,9 @@ export default function CounterWorkspace() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-lg font-semibold">Ringkasan biaya</h2>
-        <p className="mt-1 text-xs text-neutral-500">
+        <p className="mt-1 text-xs text-muted">
           Total di bawah hanya perkiraan; nilai final dihitung backend dari tarif
           aktif.
         </p>
@@ -336,7 +327,7 @@ export default function CounterWorkspace() {
             );
           })}
 
-          <div className="flex justify-between border-t border-neutral-200 pt-2 text-base font-semibold">
+          <div className="flex justify-between border-t border-line pt-2 text-base font-semibold">
             <dt>Total</dt>
             <dd className="tabular-nums">{formatRupiah(estimate.total)}</dd>
           </div>
@@ -347,15 +338,27 @@ export default function CounterWorkspace() {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-emerald-700 px-4 py-2 font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+          className="inline-flex min-h-11 items-center justify-center rounded-full bg-ocean px-5 py-2.5 font-semibold text-ivory transition-colors hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending ? "Menyimpan…" : "Buat transaksi loket"}
         </button>
-        <p className="self-center text-xs text-neutral-500">
+        <p className="self-center text-xs text-muted">
           Transaksi dibuat dengan status belum lunas. Konfirmasi uang tunai
           dilakukan pada halaman detail.
         </p>
       </div>
+
+      {/* Error umum ditampilkan di dekat tombol submit agar terlihat tanpa
+          perlu menggulir ke atas form yang panjang. Error per-field tetap
+          muncul di bawah kolomnya masing-masing. */}
+      {formError ? (
+        <p
+          role="alert"
+          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          {formError}
+        </p>
+      ) : null}
     </form>
   );
 }

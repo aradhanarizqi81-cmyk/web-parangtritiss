@@ -10,14 +10,14 @@ export function MetricCard({
   hint?: string;
 }) {
   return (
-    <div className="rounded-lg border border-neutral-200 bg-white p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+    <div className="rounded-lg border border-line bg-surface p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted">
         {label}
       </p>
-      <p className="mt-2 text-2xl font-semibold tabular-nums text-neutral-900">
+      <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
         {value}
       </p>
-      {hint ? <p className="mt-1 text-xs text-neutral-500">{hint}</p> : null}
+      {hint ? <p className="mt-1 text-xs text-muted">{hint}</p> : null}
     </div>
   );
 }
@@ -33,7 +33,7 @@ export function ErrorNotice({ message }: { message: string }) {
 export function EmptyRow({ colSpan, children }: { colSpan: number; children: ReactNode }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="px-3 py-6 text-center text-sm text-neutral-500">
+      <td colSpan={colSpan} className="px-3 py-6 text-center text-sm text-muted">
         {children}
       </td>
     </tr>

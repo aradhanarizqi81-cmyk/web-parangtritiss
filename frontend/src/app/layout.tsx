@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense, type ReactNode } from "react";
 import SiteHeader from "@/components/site-header";
 import "./globals.css";
+import "./print.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,18 +25,19 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="id"
+      data-scroll-behavior="smooth"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-neutral-50 text-neutral-900">
+      <body className="flex min-h-full flex-col bg-background text-foreground">
         <Suspense
           fallback={
-            <header className="border-b border-neutral-200 bg-white py-3.5" />
+            <header className="border-b border-line bg-background py-3.5" />
           }
         >
           <SiteHeader />
         </Suspense>
         <main className="flex-1">{children}</main>
-        <footer className="border-t border-neutral-200 bg-white py-4 text-center text-sm text-neutral-500 print:hidden">
+        <footer className="border-t border-line bg-surface py-4 text-center text-sm text-muted print:hidden">
           Prototipe pengembangan — tarif bersifat konfigurasi awal, bukan tarif resmi.
         </footer>
       </body>

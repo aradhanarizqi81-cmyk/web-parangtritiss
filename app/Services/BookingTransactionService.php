@@ -29,7 +29,10 @@ use Illuminate\Support\Str;
  */
 class BookingTransactionService
 {
-    public function __construct(private readonly PricingService $pricing) {}
+    public function __construct(
+        private readonly PricingService $pricing,
+        private readonly FacilityEntitlementService $facilities,
+    ) {}
 
     /**
      * Create an online booking: transaction, visitors, vehicle lines and one
@@ -245,6 +248,10 @@ class BookingTransactionService
         // Paid, but explicitly NOT checked in: arrival is recorded at the gate
         // in a later phase, never by a successful payment.
         $transaction->forceFill(['status' => TransactionStatus::Paid])->save();
+
+        // Facility grants are created only after the payment actually
+        // succeeded, one row per individual ticket. Idempotent by design.
+        $this->facilities->grantForTransaction($transaction);
 
         AuditLog::record($user, 'booking.payment_simulated_success', $transaction, [
             'transaction_code' => $transaction->transaction_code,

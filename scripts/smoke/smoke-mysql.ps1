@@ -1,9 +1,12 @@
 # scripts/smoke/smoke-mysql.ps1
 #
-# Uji terima end-to-end terhadap MySQL lokal + `php artisan serve` (Fase 9).
+# Uji terima end-to-end terhadap MySQL lokal + `php artisan serve` (Fase 9-10).
 #
 # PRASYARAT
 #   - Database MySQL lokal `parangtritis` sudah dimigrasi & diseed (akun demo).
+#     `DatabaseSeeder` menjalankan `FacilitySeeder` (kode FREE_TEA); bila database
+#     lama belum memilikinya, jalankan:
+#       php artisan db:seed --class=FacilitySeeder
 #   - Backend berjalan:  php artisan serve --host=127.0.0.1 --port=8000
 #
 # KONKURENSI
@@ -212,11 +215,29 @@ $payOk = Invoke-Api -Method Post -Path "/bookings/$bookingId/simulate-payment" -
 Check 'booking: simulasi sukses -> paid' (($payOk.status -ge 200 -and $payOk.status -lt 300) -and $payOk.body.data.status -eq 'paid') "status=$($payOk.status)"
 Check 'booking: tiket terbit 1 per pengunjung' ((@($payOk.body.data.tickets)).Count -eq 2)
 
+$onlineTicketA = (@($payOk.body.data.tickets))[0].ticket_code
+$onlineTicketB = (@($payOk.body.data.tickets))[1].ticket_code
+$onlineRedemption = $payOk.body.data.redemption.token
+Check 'booking: kode tiket individual & kode penukaran terbit' ([bool]$onlineTicketA -and [bool]$onlineTicketB -and [bool]$onlineRedemption)
+
 $payAgain = Invoke-Api -Method Post -Path "/bookings/$bookingId/simulate-payment" -Token $newVisitor -Body @{ outcome = 'success'; reference = $bookingRef }
 Check 'booking: kirim ulang sukses -> 409' ($payAgain.status -eq 409) "status=$($payAgain.status)"
 
 $print = Invoke-Api -Method Post -Path "/bookings/$bookingId/print" -Token $newVisitor
 Check 'booking: cetak tiket 2xx' ($print.status -ge 200 -and $print.status -lt 300) "status=$($print.status)"
+
+# Fasilitas: pembayaran sukses saja belum cukup; check-in gerbang wajib.
+$facLookupBefore = Invoke-Api -Method Post -Path '/counter/facilities/lookup' -Token $cashier -Body @{ ticket_code = $onlineTicketA }
+Check 'fasilitas: lookup tiket lunas 200' ($facLookupBefore.status -eq 200) "status=$($facLookupBefore.status) raw=$($facLookupBefore.raw)"
+$facBefore = (@($facLookupBefore.body.data.facilities))
+Check 'fasilitas: hak FREE_TEA otomatis granted' (($facBefore.Count -ge 1) -and $facBefore[0].code -eq 'FREE_TEA' -and $facBefore[0].status -eq 'granted' -and $null -eq $facBefore[0].redeemed_at)
+Check 'fasilitas: belum check-in -> tidak dapat diklaim' (($facBefore[0].can_claim -eq $false) -and $facBefore[0].block_reason -eq 'Tiket belum check-in di gerbang.')
+$facClaimBefore = Invoke-Api -Method Post -Path '/counter/facilities/claim' -Token $cashier -Body @{ ticket_code = $onlineTicketA; facility_code = 'FREE_TEA' }
+Check 'fasilitas: klaim sebelum check-in -> 422' ($facClaimBefore.status -eq 422) "status=$($facClaimBefore.status)"
+$facBarcodeRejected = Invoke-Api -Method Post -Path '/counter/facilities/lookup' -Token $cashier -Body @{ ticket_code = [string]$bookingBarcode }
+$facRedemptionRejected = Invoke-Api -Method Post -Path '/counter/facilities/lookup' -Token $cashier -Body @{ ticket_code = [string]$onlineRedemption }
+Check 'fasilitas: respons tanpa NIK mentah/barcode/kode penukaran' (($facLookupBefore.raw -match '\*') -and (-not ($facLookupBefore.raw -match [regex]::Escape([string]$bookingBarcode))) -and (-not ($facLookupBefore.raw -match [regex]::Escape([string]$onlineRedemption))))
+Check 'fasilitas: kode gerbang & penukaran bukan kode tiket' (($facBarcodeRejected.status -eq 422) -and ($facRedemptionRejected.status -eq 422)) "barcode=$($facBarcodeRejected.status) redemption=$($facRedemptionRejected.status)"
 
 $intruder = Invoke-Api -Path "/bookings/$bookingId" -Token $visitor
 Check 'IDOR: visitor lain tidak bisa membaca booking -> 403' ($intruder.status -eq 403) "status=$($intruder.status)"
@@ -231,6 +252,29 @@ Check 'gate: respons tanpa nik/barcode' ((-not ($ciOnline.raw -match '"nik"')) -
 
 $ciOnlineAgain = Invoke-Api -Method Post -Path '/gate/check-in' -Token $gate -Body @{ barcode_token = $bookingBarcode }
 Check 'gate: check-in ganda -> 409' ($ciOnlineAgain.status -eq 409) "status=$($ciOnlineAgain.status)"
+
+# Setelah check-in nyata, hak fasilitas baru boleh diklaim (sekali).
+$facClaim = Invoke-Api -Method Post -Path '/counter/facilities/claim' -Token $cashier -Body @{ ticket_code = $onlineTicketA; facility_code = 'FREE_TEA' }
+Check 'fasilitas: klaim setelah check-in 200' ($facClaim.status -eq 200) "status=$($facClaim.status) raw=$($facClaim.raw)"
+Check 'fasilitas: status redeemed + pencatat kasir' (($facClaim.body.data.facilities[0].status -eq 'redeemed') -and ($null -ne $facClaim.body.data.facilities[0].redeemed_by) -and ($null -ne $facClaim.body.data.facilities[0].redeemed_at))
+Check 'fasilitas: klaim tidak mengubah check-in' (($facClaim.body.data.checkin.checked_in -eq $true) -and ($facClaim.body.data.transaction.status -eq 'checked_in'))
+
+$facDup = Invoke-Api -Method Post -Path '/counter/facilities/claim' -Token $cashier -Body @{ ticket_code = $onlineTicketA; facility_code = 'FREE_TEA' }
+Check 'fasilitas: klaim ganda -> 409' ($facDup.status -eq 409) "status=$($facDup.status)"
+
+$facLookupAfter = Invoke-Api -Method Post -Path '/counter/facilities/lookup' -Token $cashier -Body @{ ticket_code = $onlineTicketA }
+Check 'fasilitas: lookup setelah klaim menandai sudah diklaim' (($facLookupAfter.status -eq 200) -and ($facLookupAfter.body.data.facilities[0].can_claim -eq $false) -and ($facLookupAfter.body.data.facilities[0].block_reason -eq 'Hak fasilitas ini sudah diklaim.'))
+
+$facAnon = Invoke-Api -Method Post -Path '/counter/facilities/lookup' -Body @{ ticket_code = $onlineTicketB }
+Check 'akses: fasilitas anonim -> 401' ($facAnon.status -eq 401) "status=$($facAnon.status)"
+foreach ($role in @(
+    @{ name = 'visitor'; token = $visitor },
+    @{ name = 'gate_staff'; token = $gate }
+  )) {
+  $deniedLookup = Invoke-Api -Method Post -Path '/counter/facilities/lookup' -Token $role.token -Body @{ ticket_code = $onlineTicketB }
+  $deniedClaim = Invoke-Api -Method Post -Path '/counter/facilities/claim' -Token $role.token -Body @{ ticket_code = $onlineTicketB; facility_code = 'FREE_TEA' }
+  Check "akses: fasilitas $($role.name) -> 403" (($deniedLookup.status -eq 403) -and ($deniedClaim.status -eq 403)) "lookup=$($deniedLookup.status) claim=$($deniedClaim.status)"
+}
 
 # ============================================================
 # B. Transaksi loket + C. Barcode & check-in
@@ -247,7 +291,13 @@ Check 'counter: buat transaksi 2xx' ($counter.status -ge 200 -and $counter.statu
 $counterId = $counter.body.data.id
 $counterCode = $counter.body.data.transaction_code
 $counterBarcode = $counter.body.data.barcode_token
+$counterTicketA = (@($counter.body.data.tickets))[0].ticket_code
+$counterTicketB = (@($counter.body.data.tickets))[1].ticket_code
 Check 'counter: total dihitung server (32000)' ([int]$counter.body.data.total_amount -eq 32000) "total=$($counter.body.data.total_amount)"
+Check 'counter: tiket individual terbit sejak pending' ([bool]$counterTicketA -and [bool]$counterTicketB)
+
+$facUnpaid = Invoke-Api -Method Post -Path '/counter/facilities/claim' -Token $cashier -Body @{ ticket_code = $counterTicketA; facility_code = 'FREE_TEA' }
+Check 'fasilitas: transaksi loket belum lunas -> 422' (($facUnpaid.status -eq 422) -and ($facUnpaid.body.message -eq 'Pembayaran transaksi ini belum berhasil.')) "status=$($facUnpaid.status)"
 
 $ciUnpaid = Invoke-Api -Method Post -Path '/gate/check-in' -Token $gate -Body @{ barcode_token = $counterBarcode }
 Check 'gate: transaksi belum lunas -> 422' ($ciUnpaid.status -eq 422) "status=$($ciUnpaid.status)"
@@ -261,6 +311,11 @@ Check 'counter: cetak tiket 2xx' ($printCounter.status -ge 200 -and $printCounte
 $ciCounter = Invoke-Api -Method Post -Path '/gate/check-in' -Token $gate -Body @{ barcode_token = $counterBarcode }
 Check 'gate: check-in loket lunas 2xx' ($ciCounter.status -ge 200 -and $ciCounter.status -lt 300) "status=$($ciCounter.status)"
 Check 'gate: sumber counter' ($ciCounter.body.data.source -eq 'counter')
+
+$facCounter = Invoke-Api -Method Post -Path '/counter/facilities/claim' -Token $cashier -Body @{ ticket_code = $counterTicketB; facility_code = 'FREE_TEA' }
+Check 'fasilitas: klaim tiket loket setelah check-in 200' ($facCounter.status -eq 200) "status=$($facCounter.status) raw=$($facCounter.raw)"
+$facCounterOther = Invoke-Api -Method Post -Path '/counter/facilities/lookup' -Token $cashier -Body @{ ticket_code = $counterTicketA }
+Check 'fasilitas: tiket kedua tetap punya hak sendiri' (($facCounterOther.status -eq 200) -and ($facCounterOther.body.data.facilities[0].can_claim -eq $true)) "status=$($facCounterOther.status)"
 
 $ciUnknown = Invoke-Api -Method Post -Path '/gate/check-in' -Token $gate -Body @{ barcode_token = 'unknown-token-000000000000000000000000000000' }
 Check 'gate: token tak dikenal -> 404' ($ciUnknown.status -eq 404) "status=$($ciUnknown.status)"
@@ -284,6 +339,7 @@ $race = Invoke-Api -Method Post -Path '/counter/transactions' -Token $cashier -B
 }
 Invoke-Api -Method Post -Path "/counter/transactions/$($race.body.data.id)/confirm-payment" -Token $cashier | Out-Null
 $raceBarcode = $race.body.data.barcode_token
+$raceTicket = (@($race.body.data.tickets))[0].ticket_code
 $checkinUrl = "$BaseUrl/gate/check-in"
 $checkinUrl2 = "$ConcurrentBaseUrl/gate/check-in"
 
@@ -311,6 +367,31 @@ Check 'konkurensi: tepat satu check-in sukses' ($codes[0] -eq 201 -and $codes[1]
 
 $raceAfter = Invoke-Api -Method Post -Path '/gate/check-in' -Token $gate -Body @{ barcode_token = $raceBarcode }
 Check 'konkurensi: pindai ketiga -> 409' ($raceAfter.status -eq 409) "status=$($raceAfter.status)"
+
+# Klaim fasilitas paralel: dua permintaan untuk satu hak -> satu 200, satu 409.
+$claimUrl = "$BaseUrl/counter/facilities/claim"
+$claimUrl2 = "$ConcurrentBaseUrl/counter/facilities/claim"
+$claimJob = {
+  param($Url, $Token, $Ticket, $Facility)
+  $headers = @{ Accept = 'application/json'; Authorization = "Bearer $Token" }
+  $body = @{ ticket_code = $Ticket; facility_code = $Facility } | ConvertTo-Json
+  try {
+    Invoke-RestMethod -Method Post -Uri $Url -Headers $headers -ContentType 'application/json' -Body $body -ErrorAction Stop | Out-Null
+    return 200
+  } catch {
+    if ($null -ne $_.Exception.Response) { return [int]$_.Exception.Response.StatusCode }
+    return 0
+  }
+}
+
+$f1 = Start-Job -ScriptBlock $claimJob -ArgumentList $claimUrl, $cashier, $raceTicket, 'FREE_TEA'
+$f2 = Start-Job -ScriptBlock $claimJob -ArgumentList $claimUrl2, $cashier, $raceTicket, 'FREE_TEA'
+Wait-Job $f1, $f2 | Out-Null
+$fr1 = Receive-Job $f1
+$fr2 = Receive-Job $f2
+Remove-Job $f1, $f2 -Force
+$fcodes = @($fr1, $fr2) | Sort-Object
+Check 'konkurensi fasilitas: tepat satu klaim sukses' ($fcodes[0] -eq 200 -and $fcodes[1] -eq 409) "hasil=$fr1,$fr2"
 
 # ============================================================
 # E. Hak akses & keamanan

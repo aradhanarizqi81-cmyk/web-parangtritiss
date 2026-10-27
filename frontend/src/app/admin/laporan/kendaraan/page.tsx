@@ -1,3 +1,4 @@
+import { io } from "next/cache";
 import { redirect } from "next/navigation";
 import ExportLink from "@/components/admin/export-link";
 import ReportFilter from "@/components/admin/report-filter";
@@ -14,6 +15,9 @@ import { fetchVehicleReport } from "@/lib/reports/server";
 const BASE_PATH = "/admin/laporan/kendaraan";
 const EXPORT_PATH = "/api/admin/reports/vehicles/export";
 
+// Halaman boleh memblokir: membaca cookie sesi + data terbaru dari Laravel.
+export const instant = false;
+
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function VehicleReportPage({
@@ -21,6 +25,9 @@ export default async function VehicleReportPage({
 }: {
   searchParams: SearchParams;
 }) {
+  // Periode default memakai jam server, jadi harus dihitung saat request
+  // (bukan saat prerender Cache Components).
+  await io();
   const params = await searchParams;
   const filters = withResolvedPeriod(readReportFilters(params));
   const result = await fetchVehicleReport(filters);
@@ -32,14 +39,16 @@ export default async function VehicleReportPage({
   }
 
   const { data, summary } = result.data;
-  const query = toQueryString(filters);
+  // Ekspor CSV mewakili seluruh data terfilter, bukan hanya halaman aktif,
+  // sehingga param pagination ikut dibuang (konsisten dgn halaman laporan lain).
+  const query = toQueryString({ ...filters, page: undefined, per_page: undefined });
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Laporan Kendaraan</h1>
-          <p className="mt-1 text-sm text-neutral-600">
+          <p className="mt-1 text-sm text-muted">
             Rekap per jenis kendaraan berdasarkan tanggal kunjungan. Semua jenis
             tetap ditampilkan, termasuk yang bernilai nol.
           </p>
@@ -61,9 +70,9 @@ export default async function VehicleReportPage({
         <MetricCard label="Nilai" value={formatRupiah(summary.subtotal)} />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
         <table className="w-full min-w-[560px] text-sm">
-          <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+          <thead className="bg-surface-soft text-left text-xs uppercase tracking-wide text-muted">
             <tr>
               <th className="px-3 py-2 font-medium">Jenis kendaraan</th>
               <th className="px-3 py-2 text-right font-medium">Jumlah</th>
@@ -71,7 +80,7 @@ export default async function VehicleReportPage({
               <th className="px-3 py-2 text-right font-medium">Nilai</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-100">
+          <tbody className="divide-y divide-line">
             {data.length === 0 ? (
               <EmptyRow colSpan={4}>Belum ada jenis kendaraan.</EmptyRow>
             ) : (

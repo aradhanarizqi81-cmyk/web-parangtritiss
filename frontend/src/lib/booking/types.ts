@@ -50,6 +50,19 @@ export type BookingPayment = {
   received_by: { id: number; name: string } | null;
 };
 
+/**
+ * State penukaran tiket fisik di loket. `token` adalah kode penukaran (tanpa
+ * data pribadi); backend hanya mengirimkannya setelah pembayaran sukses, jadi
+ * QR/barcode penukaran tidak pernah tampil sebelum booking lunas.
+ */
+export type BookingRedemption = {
+  redeemed: boolean;
+  redeemed_at: string | null;
+  status: string;
+  status_label: string;
+  token: string | null;
+};
+
 export type BookingTransaction = {
   id: number;
   transaction_code: string;
@@ -70,6 +83,7 @@ export type BookingTransaction = {
   vehicles: BookingVehicle[];
   payment: BookingPayment | null;
   tickets: BookingTicket[];
+  redemption: BookingRedemption;
   created_at: string | null;
 };
 

@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\V1\Admin\Report\VisitReportController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\Booking\TariffController as BookingTariffController;
 use App\Http\Controllers\Api\V1\Booking\TransactionController as BookingController;
+use App\Http\Controllers\Api\V1\Counter\FacilityController as CounterFacilityController;
+use App\Http\Controllers\Api\V1\Counter\RedemptionController as CounterRedemptionController;
 use App\Http\Controllers\Api\V1\Counter\TariffController as CounterTariffController;
 use App\Http\Controllers\Api\V1\Counter\TransactionController as CounterTransactionController;
 use App\Http\Controllers\Api\V1\Gate\CheckInController as GateCheckInController;
@@ -50,6 +52,42 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/transactions/{transaction}', [CounterTransactionController::class, 'show']);
         Route::post('/transactions/{transaction}/confirm-payment', [CounterTransactionController::class, 'confirmPayment']);
         Route::post('/transactions/{transaction}/print', [CounterTransactionController::class, 'printTickets']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Penukaran booking online (redemption)
+        |--------------------------------------------------------------------------
+        |
+        | A booking is resolved from the scanned redemption code, never from a
+        | transaction id. Throttling limits code guessing; the policy limits the
+        | desk to cashiers and admins. Lookup is read-only; only confirm records
+        | the exchange; printing (and reprinting) is recorded separately.
+        |
+        */
+        Route::middleware('throttle:counter-redemption')
+            ->prefix('redemptions')
+            ->group(function (): void {
+                Route::post('/lookup', [CounterRedemptionController::class, 'lookup']);
+                Route::post('/confirm', [CounterRedemptionController::class, 'confirm']);
+                Route::post('/print', [CounterRedemptionController::class, 'printTickets']);
+            });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Klaim fasilitas per tiket (facility entitlement)
+        |--------------------------------------------------------------------------
+        |
+        | A ticket is resolved from the individual wristband code, never from the
+        | gate barcode or the online redemption code. Throttling limits code
+        | guessing; lookup is read-only and only claim writes the redemption.
+        |
+        */
+        Route::middleware('throttle:counter-facility')
+            ->prefix('facilities')
+            ->group(function (): void {
+                Route::post('/lookup', [CounterFacilityController::class, 'lookup']);
+                Route::post('/claim', [CounterFacilityController::class, 'claim']);
+            });
     });
 
     /*

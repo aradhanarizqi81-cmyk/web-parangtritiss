@@ -19,7 +19,7 @@ export default async function BookingPage() {
     return (
       <section className="mx-auto max-w-2xl px-4 py-12">
         <h1 className="text-2xl font-semibold">Akses ditolak</h1>
-        <p className="mt-2 text-sm text-neutral-600">
+        <p className="mt-2 text-sm text-muted">
           Booking online hanya untuk wisatawan. Tampilan ini hanya gerbang UI;
           otorisasi sebenarnya tetap ditegakkan di backend.
         </p>
@@ -37,7 +37,7 @@ export default async function BookingPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Booking tiket online</h1>
-          <p className="mt-2 text-sm text-neutral-600">
+          <p className="mt-2 text-sm text-muted">
             Daftarkan pengunjung, lalu selesaikan pembayaran lewat simulasi
             akademik pada halaman detail. Tiket diterbitkan setelah pembayaran
             berhasil.
@@ -45,7 +45,7 @@ export default async function BookingPage() {
         </div>
         <Link
           href="/booking/history"
-          className="text-sm font-medium text-emerald-800 hover:underline"
+          className="text-sm font-medium text-ocean hover:underline"
         >
           Riwayat booking
         </Link>
