@@ -9,6 +9,10 @@ import { SESSION_COOKIE_NAME } from "@/lib/api/config";
  * Pemeriksaan di sini HANYA keberadaan cookie (murah dan aman dijalankan di
  * setiap request). Otorisasi sebenarnya tetap di backend: halaman /profile
  * memvalidasi token ke Laravel lewat getCurrentUser().
+ *
+ * `x-pathname` diteruskan ke server component supaya header/footer bisa memilih
+ * chrome yang tepat (publik, auth, atau portal) tanpa membaca header internal
+ * Next.js yang tidak terdokumentasi.
  */
 const PROTECTED_PATHS = [
   "/profile",
@@ -31,9 +35,10 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.nextUrl));
   }
 
-  return NextResponse.next();
-}
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", pathname);
 
-export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
-};
+  return NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+}

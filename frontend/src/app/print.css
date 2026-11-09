@@ -293,6 +293,35 @@
 
 @media print {
   /*
+   * Area cetak gate (/gate). Halaman ini memakai pohon DOM yang sama untuk
+   * layar dan cetak, jadi panel ringkasan tidak boleh disembunyikan (ia
+   * membungkus gelang). Yang dilepas hanya bingkai layarnya; anak-anak
+   * non-tiket sudah ditandai `print:hidden` di komponen.
+   */
+  .gate-print-host {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .gate-print-area {
+    margin: 0;
+    padding: 0;
+  }
+
+  .print-ticket {
+    margin: 0 0 3mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-ticket:last-child {
+    margin-bottom: 0;
+  }
+
+  /*
    * Warna panel harus ikut tercetak. Chrome/Edge menghormati
    * `print-color-adjust: exact` meski "Background graphics" mati; di browser
    * lain, aktifkan "Background graphics" bila panel tampak putih. Barcode tetap

@@ -1,13 +1,30 @@
-
-import { redirect } from "next/navigation";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import LogoutButton from "@/components/logout-button";
+import { buttonClasses } from "@/components/ui/button";
+import Card from "@/components/ui/card";
+import PageHeader from "@/components/ui/page-header";
 import { getCurrentUser } from "@/lib/auth/guard";
-import { isStaffRole, roleLabel } from "@/lib/auth/roles";
+import {
+  canUseBooking,
+  roleLabel,
+  staffDestination,
+} from "@/lib/auth/roles";
 
 export const instant = false;
 
-function Detail({
+function formatRegisteredAt(value: string | null): string {
+  if (!value) return "Belum tersedia";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "Belum tersedia";
+
+  return new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(date);
+}
+
+function DetailRow({
   label,
   children,
 }: {
@@ -15,11 +32,11 @@ function Detail({
   children: ReactNode;
 }) {
   return (
-    <div className="min-w-0 border-t border-[#e4e0d5] py-5">
-      <dt className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#78816d]">
+    <div className="flex flex-col gap-1 py-2 first:pt-0 last:pb-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+      <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
         {label}
       </dt>
-      <dd className="mt-2 break-words text-sm font-medium leading-6 text-[#193d38]">
+      <dd className="break-words text-sm font-medium text-foreground sm:text-right">
         {children}
       </dd>
     </div>
@@ -34,130 +51,166 @@ export default async function ProfilePage() {
   }
 
   const initial = user.name.trim().charAt(0).toUpperCase() || "U";
-  const staff = isStaffRole(user.role);
+  const canBook = canUseBooking(user.role);
+  const destination = staffDestination(user.role);
 
   return (
-    <main className="min-h-[75vh] bg-[#faf8f2] px-5 py-10 sm:px-8 sm:py-16">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-10">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#78816d]">
-            AKUN PENGUNJUNG
-          </p>
+    <div className="min-h-screen bg-app">
+      <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-14">
+        <PageHeader
+          eyebrow="Akun pengunjung"
+          title="Profil saya"
+          description="Kelola informasi akun dan akses aktivitas kunjunganmu melalui satu tempat."
+        />
 
-          <div className="mt-4 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-            <div>
-              <h1 className="text-4xl font-medium tracking-tight text-[#193d38] sm:text-5xl">
-                Profil saya.
-              </h1>
-              <p className="mt-3 max-w-xl text-sm leading-7 text-[#657168]">
-                Kelola informasi akun dan akses aktivitas kunjunganmu melalui
-                satu tempat.
+        <section
+          aria-labelledby="profile-name"
+          className="mt-8 overflow-hidden rounded-sm border border-teal-900/10 px-6 py-7 text-ivory sm:px-8 sm:py-8"
+          style={{
+            background:
+              "linear-gradient(135deg, #0f3f4f 0%, #1b5e6f 55%, #2f7d6b 100%)",
+          }}
+        >
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+            <div className="flex size-18 shrink-0 items-center justify-center rounded-full border border-ivory/25 bg-ivory/10 text-2xl font-semibold text-sand sm:size-20">
+              {initial}
+            </div>
+
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sand">
+                {roleLabel(user.role)}
+              </p>
+              <h2
+                id="profile-name"
+                className="mt-1 break-words text-2xl font-semibold tracking-tight text-ivory"
+              >
+                {user.name}
+              </h2>
+              <p className="mt-1 break-all text-sm leading-6 text-ivory/80">
+                {user.email}
               </p>
             </div>
+          </div>
 
-            {!staff && (
+          {canBook ? (
+            <div className="mt-6 border-t border-ivory/15 pt-5">
               <Link
                 href="/booking"
-                className="inline-flex min-h-11 w-fit items-center justify-center gap-3 rounded-full bg-[#193d38] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#28564d]"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ivory px-5 text-sm font-semibold text-ocean transition-colors hover:bg-sand"
               >
-                Daftar kunjungan <span aria-hidden="true">↗</span>
+                Daftar kunjungan
+                <span aria-hidden="true">↗</span>
               </Link>
-            )}
-          </div>
-        </div>
-
-        <section className="overflow-hidden border border-[#e4e0d5] bg-white">
-          <div className="bg-[#193d38] px-6 py-7 text-white sm:px-9 sm:py-9">
-            <div className="flex items-center gap-5">
-              <div
-                aria-hidden="true"
-                className="flex size-14 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/10 font-serif text-2xl text-[#e9d8b8] sm:size-16 sm:text-3xl"
-              >
-                {initial}
-              </div>
-
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-[#e9d8b8]">
-                  {roleLabel(user.role)}
-                </p>
-                <h2 className="mt-2 break-words text-xl font-medium sm:text-2xl">
-                  {user.name}
-                </h2>
-                <p className="mt-1 break-all text-sm text-white/65">
-                  {user.email}
-                </p>
-              </div>
             </div>
-          </div>
-
-          <div className="px-6 py-3 sm:px-9">
-            <div className="grid gap-x-10 sm:grid-cols-2">
-              <Detail label="Nama lengkap">{user.name}</Detail>
-              <Detail label="Alamat email">{user.email}</Detail>
-              <Detail label="Nomor telepon">{user.phone || "Belum diisi"}</Detail>
-              <Detail label="Peran akun">{roleLabel(user.role)}</Detail>
-            </div>
-          </div>
+          ) : null}
         </section>
 
-        <section className="mt-8">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#78816d]">
-            AKSES AKUN
-          </p>
+        <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card className="flex h-full flex-col">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+                Identitas
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-foreground">
+                Data akun
+              </h2>
+            </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {!staff && (
+            <dl className="mt-4 flex-1 divide-y divide-line text-sm">
+              <DetailRow label="Nama lengkap">{user.name}</DetailRow>
+              <DetailRow label="Email">{user.email}</DetailRow>
+              <DetailRow label="Nomor telepon">
+                {user.phone?.trim() ? user.phone : "Belum diisi"}
+              </DetailRow>
+              <DetailRow label="Terdaftar sejak">
+                {formatRegisteredAt(user.created_at)}
+              </DetailRow>
+            </dl>
+          </Card>
+
+          <Card className="flex h-full flex-col">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+                Akses
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-foreground">
+                Keamanan
+              </h2>
+            </div>
+
+            <dl className="mt-4 flex-1 divide-y divide-line text-sm">
+              <DetailRow label="Status sesi">
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="size-2 rounded-full bg-success"
+                  />
+                  Aktif
+                </span>
+              </DetailRow>
+              <DetailRow label="Metode masuk">
+                Email dan kata sandi
+              </DetailRow>
+              <DetailRow label="Penyimpanan sesi">
+                Cookie HttpOnly
+              </DetailRow>
+              <DetailRow label="Peran akun">
+                {roleLabel(user.role)}
+              </DetailRow>
+            </dl>
+
+            <div className="mt-5 border-t border-line pt-4">
+              <LogoutButton className="w-full sm:w-auto" />
+            </div>
+          </Card>
+
+          <Card className="flex h-full flex-col md:col-span-2 lg:col-span-1">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+                {canBook ? "Aktivitas" : "Operasional"}
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-foreground">
+                {canBook ? "Riwayat booking" : "Area kerja"}
+              </h2>
+            </div>
+
+            <p className="mt-2 flex-1 text-sm leading-6 text-muted">
+              {canBook
+                ? "Lihat dan periksa transaksi kunjungan yang pernah dibuat dari akun ini."
+                : "Buka portal operasional sesuai peran akun. Setiap tindakan tetap divalidasi oleh backend."}
+            </p>
+
+            {canBook ? (
               <Link
                 href="/booking/history"
-                className="group flex min-h-28 items-center justify-between border border-[#e4e0d5] bg-white p-5 transition hover:border-[#193d38]/50"
+                className={buttonClasses({
+                  variant: "secondary",
+                  className: "mt-5",
+                })}
               >
-                <div>
-                  <h3 className="font-medium text-[#193d38]">
-                    Riwayat booking
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-[#78816d]">
-                    Lihat dan periksa transaksi kunjunganmu.
-                  </p>
-                </div>
-                <span className="ml-4 text-lg transition-transform group-hover:translate-x-1">
-                  ↗
-                </span>
+                Buka riwayat
+                <span aria-hidden="true">↗</span>
               </Link>
-            )}
+            ) : destination ? (
+              <Link
+                href={destination}
+                className={buttonClasses({
+                  variant: "secondary",
+                  className: "mt-5",
+                })}
+              >
+                Buka area kerja
+                <span aria-hidden="true">↗</span>
+              </Link>
+            ) : null}
+          </Card>
+        </div>
 
-            <Link
-              href={staff ? "/admin" : "/booking"}
-              className="group flex min-h-28 items-center justify-between border border-[#e4e0d5] bg-white p-5 transition hover:border-[#193d38]/50"
-            >
-              <div>
-                <h3 className="font-medium text-[#193d38]">
-                  {staff ? "Panel operasional" : "Pendaftaran kunjungan"}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-[#78816d]">
-                  {staff
-                    ? "Lanjutkan ke area kerja sesuai hak akses."
-                    : "Persiapkan data pengunjung dan kendaraan."}
-                </p>
-              </div>
-              <span className="ml-4 text-lg transition-transform group-hover:translate-x-1">
-                ↗
-              </span>
-            </Link>
-          </div>
-        </section>
-
-        {staff && (
-          <p className="mt-6 border-l-2 border-[#b6a17b] bg-[#f0ece2] px-4 py-3 text-sm leading-6 text-[#53645d]">
-            Menu operasional ditampilkan sesuai peran akun. Akses setiap
-            tindakan tetap divalidasi oleh backend.
-          </p>
-        )}
-
-        <p className="mt-8 text-xs leading-6 text-[#78816d]">
+        <p className="mt-6 text-xs leading-6 text-muted">
           Informasi profil ditampilkan dari akun yang sedang masuk. Data
           sensitif seperti NIK tidak ditampilkan pada halaman ini.
         </p>
       </div>
-    </main>
+    </div>
   );
 }

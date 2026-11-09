@@ -1,45 +1,46 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Raleway } from "next/font/google";
 import { Suspense, type ReactNode } from "react";
+import SiteFooter from "@/components/layout/site-footer";
 import SiteHeader from "@/components/site-header";
 import "./globals.css";
 import "./print.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+/*
+ * Raleway untuk seluruh teks. Judul memakai bobot 300 dan kata penekanan 700,
+ * sesuai referensi. Bobot 600 tidak dipakai di tema ini, jadi tidak dimuat.
+ */
+const raleway = Raleway({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: ["300", "400", "500", "700"],
+  variable: "--font-raleway",
+  display: "swap",
+  fallback: ["system-ui", "Segoe UI", "Arial", "sans-serif"],
 });
 
 export const metadata: Metadata = {
-  title: "Pantai Parangtritis — Tiket & Kunjungan",
+  title: "Pantai Parangtritis | Tiket & Kunjungan",
   description:
     "Sistem pendaftaran dan pengelolaan kunjungan wisatawan Pantai Parangtritis.",
 };
+
+
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="id"
       data-scroll-behavior="smooth"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${raleway.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background text-foreground">
-        <Suspense
-          fallback={
-            <header className="border-b border-line bg-background py-3.5" />
-          }
-        >
+        <Suspense fallback={<div className="h-20 shrink-0 md:h-24" />}>
           <SiteHeader />
         </Suspense>
         <main className="flex-1">{children}</main>
-        <footer className="border-t border-line bg-surface py-4 text-center text-sm text-muted print:hidden">
-          Prototipe pengembangan — tarif bersifat konfigurasi awal, bukan tarif resmi.
-        </footer>
+        <Suspense fallback={<div className="h-16" />}>
+          <SiteFooter />
+        </Suspense>
       </body>
     </html>
   );

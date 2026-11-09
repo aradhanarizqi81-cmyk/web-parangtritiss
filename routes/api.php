@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Counter\RedemptionController as CounterRedemptio
 use App\Http\Controllers\Api\V1\Counter\TariffController as CounterTariffController;
 use App\Http\Controllers\Api\V1\Counter\TransactionController as CounterTransactionController;
 use App\Http\Controllers\Api\V1\Gate\CheckInController as GateCheckInController;
+use App\Http\Controllers\Api\V1\Gate\PrintController as GatePrintController;
 use App\Http\Controllers\Api\V1\TransactionController;
 use Illuminate\Support\Facades\Route;
 
@@ -60,14 +61,15 @@ Route::middleware('auth:sanctum')->group(function (): void {
         |
         | A booking is resolved from the scanned redemption code, never from a
         | transaction id. Throttling limits code guessing; the policy limits the
-        | desk to cashiers and admins. Lookup is read-only; only confirm records
-        | the exchange; printing (and reprinting) is recorded separately.
+        | desk to cashiers and admins. Lookup/verify are read-only for matching;
+        | consumption and ticket issuance happen at the gate printing flow.
         |
         */
         Route::middleware('throttle:counter-redemption')
             ->prefix('redemptions')
             ->group(function (): void {
                 Route::post('/lookup', [CounterRedemptionController::class, 'lookup']);
+                Route::post('/verify', [CounterRedemptionController::class, 'verify']);
                 Route::post('/confirm', [CounterRedemptionController::class, 'confirm']);
                 Route::post('/print', [CounterRedemptionController::class, 'printTickets']);
             });
@@ -124,6 +126,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         ->prefix('gate')
         ->group(function (): void {
             Route::post('/check-in', [GateCheckInController::class, 'store']);
+            Route::post('/print/lookup', [GatePrintController::class, 'lookup'])->middleware('throttle:counter-redemption');
+            Route::post('/print', [GatePrintController::class, 'store'])->middleware('throttle:counter-redemption');
         });
 
     /*

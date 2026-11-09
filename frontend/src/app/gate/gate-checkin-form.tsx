@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { BarcodeDetector } from "barcode-detector/ponyfill";
+import { inputClass } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError, kindForStatus } from "@/lib/api/errors";
 import { gateTone, type GateTone } from "@/lib/gate/status";
+import { useCameraScanner } from "@/lib/gate/use-camera-scanner";
 import type { GateCheckinResponse, GateCheckinResult } from "@/lib/gate/types";
 
 type Outcome = {
@@ -22,13 +23,11 @@ type Outcome = {
   needsLogin?: boolean;
 };
 
-const inputClass =
-  "w-full min-w-0 rounded-md border border-line bg-surface px-3 py-2 font-mono text-foreground outline-none transition focus:border-ocean focus:ring-1 focus:ring-ocean";
-
+/* Warna mengikuti token status semantik, bukan nama warna Tailwind lepas. */
 const TONE_STYLES: Record<GateTone, string> = {
-  success: "border-emerald-300 bg-emerald-50 text-emerald-900",
-  used: "border-amber-300 bg-amber-50 text-amber-900",
-  rejected: "border-red-300 bg-red-50 text-red-700",
+  success: "border-success/30 bg-success-soft text-success",
+  used: "border-warning/30 bg-warning-soft text-warning",
+  rejected: "border-danger/30 bg-danger-soft text-danger",
 };
 
 const TONE_HEADINGS: Record<GateTone, string> = {
@@ -58,57 +57,33 @@ function formatCheckedInAt(value: string | null): string {
  */
 export default function GateCheckinForm() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const detectorRef = useRef<BarcodeDetector | null>(null);
-  const scanTimerRef = useRef<number | null>(null);
-  const scanningRef = useRef(false);
   const pendingRef = useRef(false);
-  const lastTokenRef = useRef<string>("");
-  const stopRequestedRef = useRef(false);
+
+  const {
+    videoRef,
+    cameraActive,
+    cameraStatus,
+    cameraError,
+    startCamera,
+    stopCamera,
+    clearCameraError,
+  } = useCameraScanner({
+    onDetected: (value) => {
+      void submitToken(value, { fromCamera: true });
+    },
+    isPaused: () => pendingRef.current,
+    statusHint: "Arahkan kamera ke barcode Code 128 pada layar HP.",
+  });
 
   const [token, setToken] = useState("");
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [mode, setMode] = useState<"scanner" | "camera">("scanner");
-  const [cameraActive, setCameraActive] = useState(false);
-  const [cameraStatus, setCameraStatus] = useState<string | null>(null);
-  const [cameraError, setCameraError] = useState<string | null>(null);
 
   useEffect(() => {
     pendingRef.current = pending;
   }, [pending]);
-
-  function stopCamera() {
-    stopRequestedRef.current = true;
-    scanningRef.current = false;
-
-    if (scanTimerRef.current !== null) {
-      window.clearInterval(scanTimerRef.current);
-      scanTimerRef.current = null;
-    }
-
-    const stream = streamRef.current;
-
-    if (stream) {
-      for (const track of stream.getTracks()) {
-        track.stop();
-      }
-
-      streamRef.current = null;
-    }
-
-    const video = videoRef.current;
-
-    if (video) {
-      video.srcObject = null;
-    }
-
-    detectorRef.current = null;
-    setCameraActive(false);
-    setCameraStatus(null);
-  }
 
   async function submitToken(
     value: string,
@@ -124,10 +99,6 @@ export default function GateCheckinForm() {
         inputRef.current?.focus();
       }
 
-      if (opts?.fromCamera) {
-        scanningRef.current = true;
-      }
-
       return;
     }
 
@@ -136,11 +107,9 @@ export default function GateCheckinForm() {
       setOutcome({
         tone: "rejected",
         message:
-          "Kode penukaran tidak dapat digunakan untuk masuk gerbang. Gunakan barcode gerbang pada gelang tiket.",
+          "Kode penukaran online (RDM-) tidak dapat digunakan untuk check-in gerbang. Gunakan bagian Pencetakan tiket fisik di halaman ini.",
       });
-      if (opts?.fromCamera) {
-        scanningRef.current = true;
-      } else {
+      if (!opts?.fromCamera) {
         inputRef.current?.focus();
       }
       return;
@@ -148,11 +117,6 @@ export default function GateCheckinForm() {
 
     if (pendingRef.current) {
       setNotice("Masih memproses pindai sebelumnya. Silakan pindai ulang.");
-
-      if (opts?.fromCamera) {
-        scanningRef.current = true;
-      }
-
       return;
     }
 
@@ -201,163 +165,9 @@ export default function GateCheckinForm() {
 
       if (!opts?.fromCamera) {
         inputRef.current?.focus();
-      } else {
-        scanningRef.current = true;
       }
     }
   }
-
-  async function startCamera() {
-    if (cameraActive || pendingRef.current) {
-      return;
-    }
-
-    stopRequestedRef.current = false;
-    setCameraError(null);
-    setNotice(null);
-    setCameraStatus("Meminta izin kamera...");
-
-    try {
-      if (
-        typeof navigator === "undefined" ||
-        !navigator.mediaDevices?.getUserMedia
-      ) {
-        setCameraError("Kamera tidak tersedia di perangkat ini.");
-        setCameraStatus(null);
-        return;
-      }
-
-     const detector = new BarcodeDetector({
-  formats: ["qr_code", "code_128"],
-});
-      detectorRef.current = detector;
-
-      let stream: MediaStream | null = null;
-
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-          audio: false,
-        });
-      } catch {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false,
-          });
-        } catch (err) {
-          if (
-            err instanceof DOMException &&
-            err.name === "NotAllowedError"
-          ) {
-            setCameraError(
-              "Izin akses kamera ditolak. Gunakan mode scanner fisik.",
-            );
-          } else if (
-            err instanceof DOMException &&
-            err.name === "NotFoundError"
-          ) {
-            setCameraError("Tidak ditemukan kamera yang dapat digunakan.");
-          } else {
-            setCameraError("Tidak dapat mengakses kamera.");
-          }
-
-          setCameraStatus(null);
-          detectorRef.current = null;
-          return;
-        }
-      }
-
-      if (stopRequestedRef.current) {
-        for (const track of stream.getTracks()) {
-          track.stop();
-        }
-
-        return;
-      }
-
-      streamRef.current = stream;
-
-      const video = videoRef.current;
-
-      if (video) {
-        video.srcObject = stream;
-
-        try {
-          await video.play();
-        } catch {
-          // ignore
-        }
-      }
-
-      setCameraActive(true);
-      setCameraStatus("Arahkan kamera ke barcode Code 128 pada layar HP.");
-      lastTokenRef.current = "";
-      scanningRef.current = true;
-
-      if (scanTimerRef.current !== null) {
-        window.clearInterval(scanTimerRef.current);
-      }
-
-      scanTimerRef.current = window.setInterval(async () => {
-        if (stopRequestedRef.current || !scanningRef.current) {
-          return;
-        }
-
-        if (pendingRef.current) {
-          return;
-        }
-
-        const detector = detectorRef.current;
-        const videoEl = videoRef.current;
-
-        if (!detector || !videoEl) {
-          return;
-        }
-
-        if (videoEl.readyState < 2) {
-          return;
-        }
-
-        try {
-          const barcodes = await detector.detect(videoEl);
-
-          if (!barcodes || barcodes.length === 0) {
-            return;
-          }
-
-          const raw = barcodes[0]?.rawValue ?? "";
-
-          const normalizedRaw = raw.replace(/\r?\n/g, "").trim().replace(/\s+/g, "");
-
-          if (!normalizedRaw) {
-            return;
-          }
-
-          if (normalizedRaw === lastTokenRef.current) {
-            return;
-          }
-
-          lastTokenRef.current = normalizedRaw;
-          scanningRef.current = false;
-
-          await submitToken(normalizedRaw, { fromCamera: true });
-        } catch {
-          // ignore
-        }
-      }, 250);
-    } catch {
-      setCameraError("Tidak dapat memulai pemindaian kamera.");
-      setCameraStatus(null);
-      detectorRef.current = null;
-    }
-  }
-
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -366,14 +176,13 @@ export default function GateCheckinForm() {
 
   function switchToScanner() {
     stopCamera();
-    setCameraError(null);
     setMode("scanner");
     setTimeout(() => inputRef.current?.focus(), 0);
   }
 
   function switchToCamera() {
     setMode("camera");
-    setCameraError(null);
+    clearCameraError();
     setNotice(null);
   }
 
@@ -414,7 +223,7 @@ export default function GateCheckinForm() {
             htmlFor="barcode_token"
             className="block text-sm font-medium text-foreground"
           >
-            Barcode tiket
+            Barcode gerbang
           </label>
 
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
@@ -428,7 +237,7 @@ export default function GateCheckinForm() {
               autoComplete="off"
               autoCapitalize="off"
               spellCheck={false}
-              className={inputClass}
+              className={inputClass("font-mono")}
               placeholder="Pindai atau ketik token"
               aria-describedby="barcode_help"
             />
@@ -447,7 +256,7 @@ export default function GateCheckinForm() {
           </p>
 
           {notice ? (
-            <p role="status" className="mt-2 text-xs font-medium text-amber-800">
+            <p role="status" className="mt-2 text-xs font-medium text-warning">
               {notice}
             </p>
           ) : null}
@@ -504,13 +313,13 @@ export default function GateCheckinForm() {
           ) : null}
 
           {cameraError ? (
-            <p role="alert" className="mt-2 text-xs font-medium text-red-700">
+            <p role="alert" className="mt-2 text-xs font-medium text-danger">
               {cameraError}
             </p>
           ) : null}
 
           {notice ? (
-            <p role="status" className="mt-2 text-xs font-medium text-amber-800">
+            <p role="status" className="mt-2 text-xs font-medium text-warning">
               {notice}
             </p>
           ) : null}

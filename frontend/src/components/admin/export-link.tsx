@@ -82,7 +82,7 @@ export default function ExportLink({ href }: { href: string }) {
       </button>
 
       {error ? (
-        <p role="alert" className="text-xs text-red-700">
+        <p role="alert" className="text-xs text-danger">
           {error}
         </p>
       ) : null}

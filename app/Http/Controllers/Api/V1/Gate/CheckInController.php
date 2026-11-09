@@ -25,9 +25,11 @@ class CheckInController extends Controller
     ): JsonResponse {
         $this->authorize('checkInGate', Transaction::class);
 
+        $token = (string) $request->validated('barcode_token');
+
         $checkin = $service->checkIn(
             $request->user(),
-            (string) $request->validated('barcode_token'),
+            $token,
         );
 
         return response()->json([

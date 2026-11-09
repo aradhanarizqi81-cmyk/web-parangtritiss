@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Alert from "@/components/ui/alert";
+import { buttonClasses } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 
@@ -58,14 +60,14 @@ export default function PaymentSimulation({
   }
 
   return (
-    <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
+    <div className="rounded-lg border border-info/25 bg-info-soft p-4">
       <h2 className="text-lg font-semibold">Simulasi pembayaran</h2>
-      <p className="mt-1 text-sm text-sky-900">
+      <p className="mt-1 text-sm text-info">
         Ini bukan gateway pembayaran sungguhan. Tombol di bawah hanya
         mensimulasikan hasil pembayaran untuk keperluan akademik.
       </p>
 
-      <dl className="mt-3 text-xs text-sky-900">
+      <dl className="mt-3 text-xs text-info">
         <div className="flex gap-2">
           <dt className="font-medium">Referensi simulasi</dt>
           <dd className="break-all font-mono">{reference}</dd>
@@ -73,21 +75,15 @@ export default function PaymentSimulation({
       </dl>
 
       {message ? (
-        <p
-          role="status"
-          className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
-        >
+        <Alert tone="success" className="mt-3">
           {message}
-        </p>
+        </Alert>
       ) : null}
 
       {error ? (
-        <p
-          role="alert"
-          className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
+        <Alert tone="danger" className="mt-3">
           {error}
-        </p>
+        </Alert>
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-3">
@@ -95,7 +91,7 @@ export default function PaymentSimulation({
           type="button"
           onClick={() => simulate("success")}
           disabled={pending !== null}
-          className="inline-flex min-h-11 items-center justify-center rounded-full bg-ocean px-5 py-2 font-semibold text-ivory transition-colors hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-60"
+          className={buttonClasses({ size: "md" })}
         >
           {pending === "success" ? "Memproses…" : "Bayar sekarang"}
         </button>
@@ -103,7 +99,7 @@ export default function PaymentSimulation({
           type="button"
           onClick={() => simulate("failure")}
           disabled={pending !== null}
-          className="inline-flex min-h-11 items-center justify-center rounded-full border border-line bg-surface px-5 py-2 font-semibold text-ocean transition hover:border-ocean/50 hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
+          className={buttonClasses({ variant: "secondary", size: "md" })}
         >
           {pending === "failure" ? "Memproses…" : "Simulasikan gagal"}
         </button>

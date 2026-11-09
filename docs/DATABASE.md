@@ -43,15 +43,17 @@ Tarif non-kendaraan yang dikelola admin (mis. tarif wisatawan).
 | `total_amount` | total transaksi |
 | `status` | `pending` / `paid` / `checked_in` / `cancelled` |
 | `redemption_token` | **nullable unik**, token acak `RDM-…` untuk transaksi `online` — terpisah dari `barcode_token` gerbang |
-| `redeemed_at` | **nullable**, kapan tiket fisik ditukarkan di loket; `null` berarti *Belum Ditukarkan* |
-| `redeemed_by_user_id` | **nullable**, petugas loket yang menukarkan (`nullOnDelete`) |
+| `redeemed_at` | **nullable**, kapan token dikonsumsi saat tiket fisik dicetak di gate; `null` berarti *Belum Ditukarkan* |
+| `redeemed_by_user_id` | **nullable**, petugas gate yang mencetak/mengonsumsi token (`nullOnDelete`) |
 
 Snapshot tarif disimpan agar perubahan tarif tidak mengubah transaksi historis.
 
 Status penukaran sengaja **bukan** nilai `transactions.status` baru: ia cukup
 diturunkan dari `redeemed_at`, sehingga laporan, alur pembayaran, dan alur
-check-in gerbang tidak ikut berubah. Transaksi `source=counter` selalu
-`redemption_token = NULL` — hanya booking online yang bisa ditukarkan lewat QR.
+check-in gerbang tidak ikut berubah. Verifikasi read-only di Loket 2 tidak
+mengisi kolom ini; hanya `POST /gate/print` yang mengonsumsinya, tepat sekali.
+Transaksi `source=counter` selalu `redemption_token = NULL` — hanya booking
+online yang bisa dicetak lewat QR.
 
 ### `visitors`
 `transaction_id` (cascade), `full_name`, `nik` (terenkripsi — kolom `text`).

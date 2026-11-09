@@ -4,11 +4,12 @@ import { screenshotPath } from "./support";
 
 /**
  * Alur bisnis end-to-end pada database lokal:
- * booking → simulasi bayar → penukaran di loket → check-in gerbang → cetak ulang.
+ * booking → simulasi bayar → verifikasi Loket 2 (read-only) → cetak tiket fisik
+ * di gerbang → check-in gerbang.
  *
  * Menegaskan aturan yang tidak boleh berubah: token penukaran berbeda dari
- * barcode gerbang, penukaran tidak membuat check-in, dan cetak ulang tidak
- * menggandakan tiket/check-in.
+ * barcode gerbang, verifikasi loket tidak mengonsumsi token, pencetakan di gate
+ * mengonsumsi token tepat sekali, dan pencetakan bukan check-in.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -97,7 +98,7 @@ test("visitor membuat booking dan menyelesaikan simulasi pembayaran", async ({
   }
 });
 
-test("cashier menukar booking: gelang hanya muncul setelah konfirmasi", async ({
+test("loket 2 memverifikasi booking tanpa mengonsumsi token dan tanpa mencetak gelang", async ({
   browser,
 }) => {
   expect(redemptionToken, "token penukaran dari langkah sebelumnya").not.toBe("");
@@ -107,15 +108,17 @@ test("cashier menukar booking: gelang hanya muncul setelah konfirmasi", async ({
   try {
     await page.goto("/counter/penukaran");
     await expect(
-      page.getByRole("heading", { name: /penukaran tiket fisik/i }),
+      page.getByRole("heading", { name: /verifikasi booking online/i }),
     ).toBeVisible({ timeout: 30_000 });
 
-    // Assert the scanned value travels unchanged to the BFF.
-    const sentTokens: string[] = [];
+    // Assert the scanned value travels unchanged to the verify BFF.
+    const verifiedTokens: string[] = [];
     page.on("request", (request) => {
+      const path = new URL(request.url()).pathname;
+
       if (
         request.method() !== "POST" ||
-        !request.url().includes("/api/counter/redemptions/")
+        path !== "/api/counter/redemptions/verify"
       ) {
         return;
       }
@@ -124,7 +127,7 @@ test("cashier menukar booking: gelang hanya muncul setelah konfirmasi", async ({
         redemption_token?: string;
       } | null;
 
-      if (body?.redemption_token) sentTokens.push(body.redemption_token);
+      if (body?.redemption_token) verifiedTokens.push(body.redemption_token);
     });
 
     await page.locator("#redemption_token").fill(redemptionToken);
@@ -134,16 +137,84 @@ test("cashier menukar booking: gelang hanya muncul setelah konfirmasi", async ({
       page.getByRole("heading", { name: /ringkasan pesanan/i }),
     ).toBeVisible({ timeout: 30_000 });
 
-    // P1-1: gelang belum boleh ada di DOM sebelum penukaran dicatat.
+    // Read-only until the officer explicitly verifies, and never a print.
+    await expect(page.locator("article.wristband")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /konfirmasi penukaran/i }),
+    ).toHaveCount(0);
+
+    await page.getByRole("button", { name: /verifikasi booking/i }).click();
+
+    await expect(
+      page.getByText(
+        "Booking terverifikasi. Silakan menuju gate untuk pencetakan tiket fisik.",
+        { exact: true },
+      ),
+    ).toBeVisible({ timeout: 30_000 });
+
+    expect(verifiedTokens).toContain(redemptionToken);
+
+    // Verification never consumes the token and never renders a wristband.
+    await expect(page.locator("article.wristband")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /cetak/i })).toHaveCount(0);
+
+    await page.screenshot({
+      path: screenshotPath("journey", "loket2-verified", "1280x800", "screen"),
+      fullPage: true,
+      caret: "initial",
+    });
+  } finally {
+    await context.close();
+  }
+});
+
+test("gate mencetak tiket fisik dari QR RDM- dan mengonsumsi token tepat sekali", async ({
+  browser,
+}) => {
+  expect(redemptionToken, "token penukaran dari langkah sebelumnya").not.toBe("");
+
+  const { context, page } = await openRole(browser, "gate");
+
+  try {
+    await page.goto("/gate");
+    await expect(
+      page.getByRole("heading", { name: /^gerbang$/i }),
+    ).toBeVisible({ timeout: 30_000 });
+
+    // window.print() dinetralkan agar tidak membuka dialog cetak saat QA.
+    await page.evaluate(() => {
+      window.print = () => undefined;
+    });
+
+    const printedTokens: string[] = [];
+    page.on("request", (request) => {
+      const path = new URL(request.url()).pathname;
+
+      if (request.method() !== "POST" || path !== "/api/gate/print") {
+        return;
+      }
+
+      const body = request.postDataJSON() as { code?: string } | null;
+      if (body?.code) printedTokens.push(body.code);
+    });
+
+    await page.locator("#gate_print_code").fill(redemptionToken);
+    await page.getByRole("button", { name: /cari booking/i }).click();
+
+    await expect(
+      page.getByText("Ringkasan booking", { exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
+
+    // Lookup is read-only: no wristband and no print before the explicit action.
     await expect(page.locator("article.wristband")).toHaveCount(0);
 
-    await page.getByRole("button", { name: /konfirmasi penukaran/i }).click();
+    await page.getByRole("button", { name: /cetak tiket fisik/i }).click();
 
     await expect(page.locator("article.wristband")).toHaveCount(1, {
       timeout: 30_000,
     });
 
-    expect(sentTokens).toContain(redemptionToken);
+    expect(printedTokens).toContain(redemptionToken);
 
     // The wristband encodes the stable individual ticket code, never the
     // redemption or gate credential.
@@ -165,26 +236,36 @@ test("cashier menukar booking: gelang hanya muncul setelah konfirmasi", async ({
     expect(gateToken.startsWith("RDM-")).toBeFalsy();
 
     await page.screenshot({
-      path: screenshotPath("journey", "redemption-redeemed", "1280x800", "screen"),
+      path: screenshotPath("journey", "gate-tickets-printed", "1280x800", "screen"),
       fullPage: true,
       caret: "initial",
     });
+
+    // A second lookup of the same token is rejected: it was consumed once.
+    await page.locator("#gate_print_code").fill(redemptionToken);
+    await page.getByRole("button", { name: /cari booking/i }).click();
+
+    await expect(page.locator('p[role="alert"]').first()).toContainText(
+      /sudah ditukarkan/i,
+      { timeout: 30_000 },
+    );
+    await expect(page.locator("article.wristband")).toHaveCount(0);
   } finally {
     await context.close();
   }
 });
 
-test("gate: scan pertama berhasil, scan kedua ditolak (bukti penukaran tidak auto check-in)", async ({
+test("gate: scan pertama berhasil, scan kedua ditolak (bukti cetak bukan check-in)", async ({
   browser,
 }) => {
-  expect(gateToken, "barcode gerbang dari langkah penukaran").not.toBe("");
+  expect(gateToken, "barcode gerbang dari langkah booking").not.toBe("");
 
   const { context, page } = await openRole(browser, "gate");
 
   try {
     await page.goto("/gate");
     await expect(
-      page.getByRole("heading", { name: /validasi tiket/i }),
+      page.getByRole("heading", { name: /^gerbang$/i }),
     ).toBeVisible({ timeout: 30_000 });
 
     await page.locator("#barcode_token").fill(gateToken);
@@ -211,50 +292,42 @@ test("gate: scan pertama berhasil, scan kedua ditolak (bukti penukaran tidak aut
   }
 });
 
-test("cashier cetak ulang tidak menggandakan tiket/check-in", async ({
+test("token yang sudah dicetak tidak dapat dicetak ulang dan tidak menggandakan tiket", async ({
   browser,
 }) => {
   expect(redemptionToken).not.toBe("");
 
-  const { context, page } = await openRole(browser, "cashier");
+  const { context, page } = await openRole(browser, "gate");
 
   try {
-    await page.goto("/counter/penukaran");
-    await page.locator("#redemption_token").fill(redemptionToken);
-    await page.getByRole("button", { name: /periksa kode/i }).click();
+    await page.goto("/gate");
+    await expect(
+      page.getByRole("heading", { name: /^gerbang$/i }),
+    ).toBeVisible({ timeout: 30_000 });
 
-    await expect(page.locator("article.wristband")).toHaveCount(1, {
-      timeout: 30_000,
+    await page.locator("#gate_print_code").fill(redemptionToken);
+    await page.getByRole("button", { name: /cari booking/i }).click();
+
+    await expect(page.locator('p[role="alert"]').first()).toContainText(
+      /sudah ditukarkan/i,
+      { timeout: 30_000 },
+    );
+
+    // No second wristband, and the check-in state is untouched.
+    await expect(page.locator("article.wristband")).toHaveCount(0);
+
+    await page.locator("#barcode_token").fill(gateToken);
+    await page.locator("#barcode_token").press("Enter");
+
+    await expect(
+      page.getByRole("heading", { name: /tiket sudah pernah check-in/i }),
+    ).toBeVisible({ timeout: 30_000 });
+
+    await page.screenshot({
+      path: screenshotPath("journey", "gate-token-used", "1280x800", "screen"),
+      fullPage: true,
+      caret: "initial",
     });
-
-    // window.print() dinetralkan agar tidak membuka dialog cetak saat QA.
-    await page.evaluate(() => {
-      window.print = () => undefined;
-    });
-
-    const printButton = page.getByRole("button", { name: /cetak/i }).first();
-    await expect(printButton).toBeVisible();
-    await printButton.click();
-
-    // Masih tepat satu gelang: cetak ulang tidak menambah tiket.
-    await expect(page.locator("article.wristband")).toHaveCount(1, {
-      timeout: 30_000,
-    });
-
-    // Bukti tambahan: cetak ulang tidak mengubah status check-in gerbang.
-    const gate = await openRole(browser, "gate");
-
-    try {
-      await gate.page.goto("/gate");
-      await gate.page.locator("#barcode_token").fill(gateToken);
-      await gate.page.locator("#barcode_token").press("Enter");
-
-      await expect(
-        gate.page.getByRole("heading", { name: /tiket sudah pernah check-in/i }),
-      ).toBeVisible({ timeout: 30_000 });
-    } finally {
-      await gate.context.close();
-    }
   } finally {
     await context.close();
   }

@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Alert from "@/components/ui/alert";
+import { buttonClasses } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 
@@ -52,17 +54,14 @@ export default function PrintTicketButton({
         type="button"
         onClick={printTickets}
         disabled={pending}
-        className="inline-flex min-h-11 items-center justify-center rounded-full bg-ocean px-5 py-2 font-semibold text-ivory transition-colors hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-60"
+        className={buttonClasses({ size: "md" })}
       >
         {pending ? "Menyiapkan…" : "Cetak Tiket"}
       </button>
       {error ? (
-        <p
-          role="alert"
-          className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
+        <Alert tone="danger" className="mt-2">
           {error}
-        </p>
+        </Alert>
       ) : null}
     </div>
   );

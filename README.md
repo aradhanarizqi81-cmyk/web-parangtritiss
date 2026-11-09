@@ -138,7 +138,11 @@ Barcode & check-in gerbang (Fase 7) sudah aktif untuk peran `gate_staff` dan
 `admin`: setiap tiket memuat barcode grup Code128 (dari `transactions.barcode_token`)
 yang dipindai di halaman `/gate`. Check-in hanya berhasil untuk transaksi lunas
 pada hari kunjungan, mencatat jumlah wisatawan hadir, dan menolak pemindaian ulang
-tanpa membuat catatan baru.
+tanpa membuat catatan baru. Halaman `/gate` juga mencetak tiket fisik booking
+online dari QR penukaran `RDM-` (lookup read-only lalu cetak eksplisit yang
+mengonsumsi token tepat sekali); alur ini terpisah dari check-in. Loket 2
+(`/counter/penukaran`) hanya memverifikasi booking secara read-only dan
+mengarahkan pengunjung ke gerbang.
 
 Dashboard & laporan (Fase 8) sudah aktif untuk peran `admin` di area `/admin`:
 ringkasan operasional, laporan kunjungan, transaksi/pendapatan, kendaraan, dan

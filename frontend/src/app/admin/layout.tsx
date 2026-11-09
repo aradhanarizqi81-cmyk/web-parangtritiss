@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import AdminNav from "@/components/admin/admin-nav";
+import AdminSidebar from "@/components/admin/AdminSidebar";
+import SiteHeader from "@/components/site-header";
+import AccessDenied from "@/components/ui/access-denied";
 import { getCurrentUser } from "@/lib/auth/guard";
 import { canUseDashboard } from "@/lib/auth/roles";
 
@@ -25,20 +27,19 @@ export default async function AdminLayout({
 
   if (!canUseDashboard(user.role)) {
     return (
-      <section className="mx-auto max-w-2xl px-4 py-12">
-        <h1 className="text-2xl font-semibold">Akses ditolak</h1>
-        <p className="mt-2 text-sm text-muted">
-          Dasbor dan laporan hanya untuk administrator. Tampilan ini hanya
-          gerbang UI; otorisasi sebenarnya tetap ditegakkan di backend.
-        </p>
-      </section>
+      <div className="min-h-screen bg-app">
+        <AccessDenied description="Dasbor dan laporan hanya untuk administrator. Tampilan ini hanya gerbang UI; otorisasi sebenarnya tetap ditegakkan di backend." />
+      </div>
     );
   }
 
   return (
-    <section className="mx-auto max-w-5xl px-4 py-12">
-      <AdminNav />
-      <div className="mt-6">{children}</div>
-    </section>
+    <div className="min-h-screen bg-app">
+      <SiteHeader />
+      <AdminSidebar />
+      <section className="ml-64 px-6 py-8 sm:px-8 lg:px-10">
+        <div className="mt-6">{children}</div>
+      </section>
+    </div>
   );
 }

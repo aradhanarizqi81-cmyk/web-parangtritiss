@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Counter;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Counter\RedemptionRequest;
 use App\Http\Resources\RedemptionResource;
+use App\Models\AuditLog;
 use App\Models\Transaction;
 use App\Services\RedemptionService;
 use Illuminate\Http\JsonResponse;
@@ -34,6 +35,29 @@ class RedemptionController extends Controller
         );
 
         return response()->json([
+            'data' => new RedemptionResource($transaction),
+        ]);
+    }
+
+    /**
+     * Verification at counter for matching only: read-only, no consumption of token.
+     */
+    public function verify(
+        RedemptionRequest $request,
+        RedemptionService $service,
+    ): JsonResponse {
+        $this->authorize('verifyRedemption', Transaction::class);
+
+        $token = (string) $request->validated('redemption_token');
+        $transaction = $service->lookup($token);
+
+        AuditLog::record($request->user(), 'counter_redemption.verified', $transaction, [
+            'transaction_code' => $transaction->transaction_code,
+            'visitor_count' => $transaction->visitor_count,
+        ]);
+
+        return response()->json([
+            'message' => 'Booking terverifikasi. Silakan menuju gate untuk pencetakan tiket fisik.',
             'data' => new RedemptionResource($transaction),
         ]);
     }

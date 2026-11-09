@@ -1,5 +1,12 @@
 import type { ReactNode } from "react";
+import Alert from "@/components/ui/alert";
+import Card from "@/components/ui/card";
 
+/*
+ * Komponen khusus laporan. Bentuk kartu dan peringatan diambil dari `ui/`
+ * supaya radius, garis, dan warna status laporan sama dengan halaman lain;
+ * yang tersisa di sini hanya susunan khas metrik dan baris kosong tabel.
+ */
 export function MetricCard({
   label,
   value,
@@ -10,7 +17,7 @@ export function MetricCard({
   hint?: string;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-surface p-4">
+    <Card className="p-4 sm:p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-muted">
         {label}
       </p>
@@ -18,16 +25,12 @@ export function MetricCard({
         {value}
       </p>
       {hint ? <p className="mt-1 text-xs text-muted">{hint}</p> : null}
-    </div>
+    </Card>
   );
 }
 
 export function ErrorNotice({ message }: { message: string }) {
-  return (
-    <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-      {message}
-    </p>
-  );
+  return <Alert tone="danger">{message}</Alert>;
 }
 
 export function EmptyRow({ colSpan, children }: { colSpan: number; children: ReactNode }) {

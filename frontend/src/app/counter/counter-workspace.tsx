@@ -9,6 +9,8 @@ import {
   type FormEvent,
 } from "react";
 import Field from "@/components/field";
+import Alert from "@/components/ui/alert";
+import { inputClass } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type { ValidationErrors } from "@/lib/api/types";
@@ -17,9 +19,6 @@ import type { TariffCatalog } from "@/lib/pricing/tariffs";
 import type { CounterTransaction } from "@/lib/counter/types";
 
 type VisitorRow = { full_name: string; nik: string };
-
-const inputClass =
-  "w-full min-w-0 rounded-md border border-line bg-surface px-3 py-2 text-base text-foreground outline-none transition focus:border-ocean focus:ring-1 focus:ring-ocean";
 
 /**
  * Tanggal lokal hari ini (YYYY-MM-DD), tanpa terpengaruh UTC.
@@ -144,14 +143,7 @@ export default function CounterWorkspace() {
   }
 
   if (loadError) {
-    return (
-      <p
-        role="alert"
-        className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-      >
-        {loadError}
-      </p>
-    );
+    return <Alert tone="danger">{loadError}</Alert>;
   }
 
   if (tariffs === null) {
@@ -160,7 +152,7 @@ export default function CounterWorkspace() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-8" noValidate>
-      <section className="rounded-lg border border-line bg-surface p-4">
+      <section className="card-surface p-4">
         <Field id="visit_date" label="Tanggal kunjungan" error={errors.visit_date?.[0]}>
           <input
             id="visit_date"
@@ -172,12 +164,12 @@ export default function CounterWorkspace() {
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
               setVisitDate(event.target.value)
             }
-            className={`${inputClass} sm:max-w-xs`}
+            className={inputClass("sm:max-w-xs")}
           />
         </Field>
       </section>
 
-      <section className="rounded-lg border border-line bg-surface p-4">
+      <section className="card-surface p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Pengunjung</h2>
           <button
@@ -212,7 +204,7 @@ export default function CounterWorkspace() {
                   onChange={(event) =>
                     updateVisitor(index, "full_name", event.target.value)
                   }
-                  className={inputClass}
+                  className={inputClass()}
                 />
               </Field>
 
@@ -230,7 +222,7 @@ export default function CounterWorkspace() {
                   onChange={(event) =>
                     updateVisitor(index, "nik", event.target.value)
                   }
-                  className={inputClass}
+                  className={inputClass()}
                 />
               </Field>
 
@@ -239,7 +231,7 @@ export default function CounterWorkspace() {
                   type="button"
                   onClick={() => removeVisitor(index)}
                   disabled={visitors.length <= 1}
-                  className="inline-flex min-h-11 items-center rounded-md border border-line px-3 text-sm font-medium text-[#8b5148] transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex min-h-11 items-center rounded-lg border border-line px-3 text-sm font-medium text-danger transition hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-40"
                   aria-label={`Hapus pengunjung ${index + 1}`}
                 >
                   Hapus
@@ -250,7 +242,7 @@ export default function CounterWorkspace() {
         </ol>
       </section>
 
-      <section className="rounded-lg border border-line bg-surface p-4">
+      <section className="card-surface p-4">
         <h2 className="text-lg font-semibold">Kendaraan</h2>
         <p className="mt-1 text-xs text-muted">
           Isi jumlah kendaraan yang masuk. Kosongkan bila tidak ada.
@@ -293,7 +285,7 @@ export default function CounterWorkspace() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-line bg-surface p-4">
+      <section className="card-surface p-4">
         <h2 className="text-lg font-semibold">Ringkasan biaya</h2>
         <p className="mt-1 text-xs text-muted">
           Total di bawah hanya perkiraan; nilai final dihitung backend dari tarif
@@ -351,14 +343,7 @@ export default function CounterWorkspace() {
       {/* Error umum ditampilkan di dekat tombol submit agar terlihat tanpa
           perlu menggulir ke atas form yang panjang. Error per-field tetap
           muncul di bawah kolomnya masing-masing. */}
-      {formError ? (
-        <p
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
-          {formError}
-        </p>
-      ) : null}
+      {formError ? <Alert tone="danger">{formError}</Alert> : null}
     </form>
   );
 }

@@ -1,42 +1,170 @@
 @import "tailwindcss";
 
+/*
+ * Tiga lapis token.
+ *
+ * Lapis 1 (primitif) menyimpan nilai mentah: skala teal, netral, dan status.
+ * Lapis 2 (semantik) memberi nama peran: latar, teks, garis, aksen, tombol.
+ * Lapis 3 (komponen) berada di komponen Tailwind masing-masing.
+ *
+ * Tema beranda mengikuti referensi pesisir: teal dalam untuk tombol dan judul,
+ * latar putih bersih tanpa krem, teks abu-abu kebiruan, dan sudut kotak.
+ * Nama token lama (ocean, sand, ivory) dipertahankan sebagai alias agar
+ * halaman aplikasi yang belum disentuh ikut berubah warna tanpa migrasi kelas.
+ */
 :root {
-  --background: #faf8f2;
-  --foreground: #183b38;
-  --ocean: #174a45;
-  --ocean-dark: #103632;
-  --sand: #e9d8b8;
-  --ivory: #fffaf0;
-  --muted: #6b7771;
-  --line: #e4e1d7;
-  --surface: #ffffff;
-  --surface-soft: #f3f0e7;
-  --focus-ring: rgba(23, 74, 69, 0.2);
+  /* Primitif: teal */
+  --teal-950: #082932;
+  --teal-900: #0f3f4f;
+  --teal-800: #134b5c;
+  --teal-700: #1b5e6f;
+  --teal-600: #1f7284;
+  --teal-500: #1fa5a8;
+
+  /* Primitif: laut (alias skala teal untuk panel gelap) */
+  --ocean-950: var(--teal-950);
+  --ocean-900: var(--teal-900);
+  --ocean-800: var(--teal-800);
+  --ocean-700: var(--teal-700);
+  --ocean-600: var(--teal-600);
+
+  /* Primitif: netral dingin */
+  --sand-500: #cfe9ec;
+  --sand-300: #e8f3f4;
+  --sand-100: #ffffff;
+  --ink: #17414f;
+  --ink-muted: #54636a;
+  --line-ink: #e3e9ea;
+  --surface-white: #ffffff;
+  --surface-soft-mist: #f4f7f7;
+
+  /* Primitif: status */
+  --success: #15803d;
+  --success-soft: #ecfdf5;
+  --warning: #b45309;
+  --warning-soft: #fffbeb;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --info: #0369a1;
+  --info-soft: #f0f9ff;
+
+  /* Latar & teks gelap (Phase 3) */
+  --surface-dark: #0f3f4f;
+  --surface-dark-text: rgba(255, 255, 255, 0.78);
+  --surface-dark-label: rgba(255, 255, 255, 0.7);
+  --text-on-dark: #ffffff;
+
+  /* Semantik */
+  --background: #ffffff;
+  --foreground: var(--ink);
+  --ocean: var(--teal-900);
+  --ocean-dark: var(--teal-950);
+  --sand: var(--sand-500);
+  --ivory: #ffffff;
+  --muted: var(--ink-muted);
+  --line: var(--line-ink);
+  --surface: var(--surface-white);
+  --surface-soft: var(--surface-soft-mist);
+  --accent: var(--teal-700);
+  --accent-soft: #e3f3f4;
+  --focus-ring: var(--teal-700);
+  --text-heading: var(--ink);
+  --text-body: #485860;
+
+  /* Token autentikasi split-card (wajib dipakai, jangan hardcode di komponen) */
+  --auth-surface: #FFFFFF;
+  --auth-title: #0F2F3F;
+  --auth-text: #3C5560;
+  --auth-muted: #6B808A;
+  --auth-input-bg: #E3F5F6;
+  --auth-input-border: #BFE3E6;
+  --auth-input-focus: #14808F;
+  --auth-primary: #14414F;
+  --auth-primary-hover: #0F3340;
+  --auth-on-primary: #FFFFFF;
+  --auth-link: #14808F;
+  --auth-error: #B3261E;
+  --auth-error-bg: #FDECEA;
+
+  /* Gradien latar (Phase 4) */
+  --bg-app: linear-gradient(135deg, #eaf5f4 0%, #d8eeea 50%, #e0f1e8 100%);
+  --bg-auth: linear-gradient(135deg, #0f3f4f 0%, #1b5e6f 55%, #2f7d6b 100%);
+
+  /*
+   * Bayangan sengaja nyaris tidak ada. Referensi memakai batas tipis, bukan
+   * kartu mengambang; bayangan hanya untuk elemen yang benar-benar menumpuk.
+   */
+  --card-shadow: none;
+  --card-shadow-raised: 0 10px 24px rgba(15, 63, 79, 0.14);
+
+  /*
+   * Informasi tambahan untuk dokumentasi:
+   * - Rasio kontras dihitung menggunakan rumus WCAG 2.1
+   * - (L1 + 0.05) / (L2 + 0.05) dimana L1 > L2
+   * - Luminance: 0.2126*R + 0.7152*G + 0.0722*B (sRGB)
+   */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface-dark: var(--surface-dark);
+  --color-surface-dark-text: var(--surface-dark-text);
+  --color-text-on-dark: var(--text-on-dark);
   --color-ocean: var(--ocean);
   --color-ocean-dark: var(--ocean-dark);
+  --color-ocean-950: var(--ocean-950);
+  --color-ocean-900: var(--ocean-900);
+  --color-ocean-800: var(--ocean-800);
+  --color-ocean-700: var(--ocean-700);
+  --color-ocean-600: var(--ocean-600);
+  --color-teal-950: var(--teal-950);
+  --color-teal-900: var(--teal-900);
+  --color-teal-800: var(--teal-800);
+  --color-teal-700: var(--teal-700);
+  --color-teal-600: var(--teal-600);
+  --color-teal-500: var(--teal-500);
   --color-sand: var(--sand);
   --color-ivory: var(--ivory);
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-surface: var(--surface);
   --color-surface-soft: var(--surface-soft);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  /*
+   * Skala radius dipersempit ke 0-2px. Semua utility rounded-sm..rounded-4xl
+   * yang tersebar di halaman aplikasi ikut menjadi kotak tanpa perlu disunting
+   * satu per satu. Hanya lencana status yang tetap pill (rounded-full).
+   */
+  --radius-xs: 1px;
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+  --radius-3xl: 2px;
+  --radius-4xl: 2px;
+  --radius-pill: 999px;
+  /* Pill radius for navbar and navbar action buttons only */
+  --shadow-card: var(--card-shadow);
+  --shadow-raised: var(--card-shadow-raised);
+  --font-sans: var(--font-raleway);
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
 /*
  * Normalisasi dan dasar tema wajib berada di dalam `@layer base` supaya tetap
  * kalah prioritas dari utility Tailwind (mis. `text-ivory`, `bg-ocean`).
- *
- * Sebelumnya aturan ini ditulis tanpa layer sehingga, sesuai spesifikasi CSS
- * Cascade Layers, selalu mengalahkan utility yang berada di `@layer utilities`.
- * Akibatnya `a { color: inherit }` menimpa `text-white`/`text-ivory` pada setiap
- * <a> (termasuk <Link> Next.js) dan membuat teks tombol menjadi gelap.
  */
 @layer base {
   * {
@@ -45,7 +173,7 @@
 
   html {
     scroll-behavior: smooth;
-    scroll-padding-top: 90px;
+    scroll-padding-top: 96px;
     -webkit-text-size-adjust: 100%;
   }
 
@@ -53,14 +181,57 @@
     margin: 0;
     background: var(--background);
     color: var(--foreground);
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: var(--font-sans);
+    font-weight: 400;
+    font-size: 15px;
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /*
+   * Judul memakai Raleway 300. Kata penekanan diberi weight 700 langsung di
+   * markup, jadi aturan ini tidak perlu memaksa weight pada elemen turunan.
+   */
+  h1 {
+    font-weight: 300;
+    font-size: clamp(2.25rem, 5vw, 3.5rem);
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  .hero-h1 {
+    font-size: 2.25rem;
+    font-weight: 600;
+  }
+
+  h1.h1-hero {
+    font-size: 2.25rem;
+    font-weight: 600;
+  }
+
+  h1.h1-page {
+    font-size: 2.25rem;
+    font-weight: 600;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--teal-700);
+  }
+
+  p {
+    font-size: 15px;
+    line-height: 1.7;
+    text-wrap: pretty;
+  }
+
   ::selection {
-    background: var(--sand);
-    color: var(--ocean-dark);
+    background: var(--teal-900);
+    color: #ffffff;
   }
 
   a {
@@ -73,6 +244,12 @@
   textarea,
   select {
     font: inherit;
+  }
+
+  /* Tombol aksi di dalam navbar pakai pill (999px radius) */
+  button.navbar-action,
+  .btn-navbar-action {
+    border-radius: var(--radius-pill);
   }
 
   button {
@@ -89,15 +266,337 @@
     color: var(--foreground);
   }
 
+  /*
+   * Placeholder tetap harus terbaca. Nilai lama #8b938c hanya 3,2:1 di atas
+   * putih; var(--muted) yang baru lolos 4,5:1.
+   */
   input::placeholder,
   textarea::placeholder {
-    color: #8b938c;
+    color: var(--muted);
     opacity: 1;
+  }
+
+  .surface-dark {
+    /* Fase 3: Permukaan gelap dengan kontras teks yang sudah dihitung */
+    background: var(--surface-dark); /* teal-900 */
+    color: var(--text-on-dark); /* #fff */
+  }
+
+  .surface-dark h1,
+  .surface-dark h2,
+  .surface-dark h3 {
+    color: var(--text-on-dark);
+  }
+
+  .surface-dark p,
+  .surface-dark label {
+    color: var(--surface-dark-text); /* rgba(255,255,255,.78) */
+  }
+
+  .surface-dark ::placeholder,
+  .surface-dark textarea::placeholder {
+    color: var(--surface-dark-text);
+  }
+
+  /* ========= NAVBAR ========= */
+  .site-nav-wrap {
+    position: fixed;
+    top: 16px;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    padding-inline: 16px;
+    pointer-events: none;
+  }
+
+  .site-nav {
+    pointer-events: auto;
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 1200px;
+    margin-inline: auto;
+    height: 64px;
+    min-height: 0;
+    max-height: 64px;
+    padding: 0 12px 0 24px;
+    border-radius: 32px;
+    overflow: visible;
+  }
+
+  /*
+   * Varian transparan berada di atas foto hero. Latar gelap tipis diperlukan
+   * agar teks putih tetap lolos kontras di area foto yang terang.
+   */
+  .site-nav[data-variant="transparent"] {
+    background: rgba(8, 41, 50, 0.46);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 8px 32px rgba(8, 41, 50, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    color: #fff;
+  }
+
+  .site-nav[data-variant="transparent"][data-scrolled="true"] {
+    background: rgba(8, 41, 50, 0.78);
+  }
+
+  .site-nav[data-variant="solid"] {
+    background: rgba(255, 255, 255, 0.62);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 8px 28px rgba(15, 63, 79, 0.12);
+    color: #17414f;
+  }
+
+  .site-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .site-nav-link {
+    padding: 8px 16px;
+    border-radius: 999px;
+    line-height: 1;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 200ms ease;
+  }
+
+  .site-nav-link-active {
+    background: rgba(255, 255, 255, 0.22);
+  }
+
+  .site-nav[data-variant="solid"] .site-nav-link-active {
+    background: rgba(15, 63, 79, 0.10);
+  }
+
+  .site-nav-link:hover {
+    background: rgba(255, 255, 255, calc(0.22 + 0.06));
+  }
+
+  .site-nav[data-variant="solid"] .site-nav-link:hover {
+    background: rgba(15, 63, 79, calc(0.10 + 0.06));
+  }
+
+  .site-nav-link:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+
+  .site-nav[data-variant="solid"] .site-nav-link:focus-visible {
+    outline-color: var(--teal-900);
+  }
+
+  .site-logo {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    font-size: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+  }
+
+  .site-nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .site-nav-action {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 200ms ease;
+    text-decoration: none;
+  }
+
+  .site-nav-action-secondary {
+    background: transparent;
+    color: currentColor;
+  }
+
+  .site-nav-action-primary {
+    background: rgba(15, 63, 79, 0.92);
+    color: #fff;
+    min-height: 44px;
+    padding: 0 20px;
+  }
+
+  .site-nav-action-primary:hover {
+    background: rgba(27, 94, 111, 0.92);
+  }
+
+  .site-nav-action:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+
+  .site-nav[data-variant="solid"] .site-nav-action:focus-visible {
+    outline-color: var(--teal-900);
+  }
+
+  .site-nav-user {
+    position: relative;
+  }
+
+  .site-nav-menu-btn {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    color: currentColor;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 200ms ease;
+  }
+
+  /*
+   * Tombol laci hanya muncul di bawah breakpoint md. Di layar lebar navigasi
+   * horizontal yang dipakai, sehingga hanya satu menu yang aktif pada satu
+   * breakpoint.
+   */
+  .site-nav-menu-toggle {
+    display: none;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    background: transparent;
+    color: currentColor;
+    cursor: pointer;
+  }
+
+  .site-nav[data-variant="solid"] .site-nav-menu-toggle {
+    border-color: rgba(15, 63, 79, 0.2);
+  }
+
+  .site-nav[data-variant="solid"] .site-nav-menu-btn {
+    background: rgba(15, 63, 79, 0.1);
+  }
+
+  .site-nav-menu-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  .site-nav[data-variant="solid"] .site-nav-menu-btn:hover {
+    background: rgba(15, 63, 79, 0.2);
+  }
+
+  .site-nav-menu-btn:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+
+  .site-nav[data-variant="solid"] .site-nav-menu-btn:focus-visible {
+    outline-color: var(--teal-900);
+  }
+
+  .site-nav-menu-toggle:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  .site-nav[data-variant="solid"] .site-nav-menu-toggle:hover {
+    background: rgba(15, 63, 79, 0.08);
+  }
+
+  /*
+   * Dropdown profil menempel pada tombol inisial di dalam `.site-nav-user`.
+   * Latar dibuat pekat dan warna teks ditetapkan eksplisit supaya menu tetap
+   * terbaca di varian navbar transparan maupun padat.
+   */
+  .site-nav-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 100;
+    min-width: 200px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 18px 40px rgba(8, 41, 50, 0.18);
+    color: var(--foreground);
+  }
+
+  .site-nav-dropdown-item {
+    display: flex;
+    width: 100%;
+    min-height: 44px;
+    align-items: center;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+    text-decoration: none;
+    transition: background 150ms ease;
+  }
+
+  .site-nav-dropdown-item:hover {
+    background: rgba(15, 63, 79, 0.08);
+  }
+
+  .site-nav-dropdown-divider {
+    height: 1px;
+    background: rgba(15, 63, 79, 0.1);
+    margin: 8px 0;
+  }
+
+  @media (max-width: 767px) {
+    .site-nav-wrap { top: 12px; }
+    .site-nav {
+      height: 56px;
+      max-height: 56px;
+      border-radius: 28px;
+      padding-left: 16px;
+    }
+
+    .site-nav-links,
+    .site-nav-actions {
+      display: none;
+    }
+
+    .site-nav-menu-toggle {
+      display: inline-flex;
+    }
+  }
+
+  @supports not (backdrop-filter: blur(1px)) {
+    .site-nav[data-variant="transparent"] { background: rgba(15, 63, 79, 0.88); }
+    .site-nav[data-variant="solid"] { background: rgba(255, 255, 255, 0.94); }
   }
 
   :where(a, button, input, textarea, select):focus-visible {
     outline: 3px solid var(--focus-ring);
-    outline-offset: 3px;
+    outline-offset: 2px;
   }
 
   img {
@@ -110,7 +609,39 @@
   }
 }
 
+@layer utilities {
+  /*
+   * Latar ambient portal. Token gradien sudah ada sejak tema awal, tetapi
+   * kelasnya belum pernah didefinisikan sehingga `bg-app` tidak berefek.
+   * Nilai tetap lembut agar tabel, scanner, dan form tetap dibaca di atas
+   * permukaan netral.
+   */
+  .bg-app {
+    background-color: #eaf5f4;
+    background-image: var(--bg-app);
+  }
+
+  .bg-auth {
+    background-color: var(--teal-900);
+    background-image: var(--bg-auth);
+  }
+}
+
 @layer components {
+  /*
+   * Satu definisi permukaan kartu untuk panel putih di beranda dan aplikasi.
+   * Sudut 2px, garis rambut 1px, tanpa bayangan: bentuk kotak seperti referensi.
+   * Warna teks ditetapkan di sini supaya judul di dalam kartu tidak mewarisi
+   * warna terang dari section gelap di luarnya.
+   */
+  .card-surface {
+    border-radius: 2px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--foreground);
+    transition: border-color 150ms ease, background-color 150ms ease;
+  }
+
   /*
    * Gelang tiket: paksa browser mencetak warna latar gradien dan aksen ivory,
    * bukan menggantinya dengan putih agar barcode dan identitas tetap terbaca.
@@ -129,5 +660,188 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ========= CAROUSEL COVERFLOW 3D: DESTINASI ========= */
+/*
+ * Posisi kartu dihitung penuh di CSS dari --abs dan --sg. Jangan menaruh
+ * preserve-3d, filter, opacity < 1, atau overflow: hidden pada .cf: keempatnya
+ * mematahkan perspective. Pemotongan layar dilakukan di .cf-section.
+ */
+.cf-section {
+  padding: 72px 0 56px;
+  overflow-x: clip;
+}
+
+.cf {
+  --w: clamp(210px, 24vw, 300px);
+  --step: clamp(34px, 5vw, 64px);
+  --gap: clamp(24px, 5vw, 56px);
+  --rot: 50deg;
+  position: relative;
+  height: calc(var(--w) * 1.33 + 40px);
+  perspective: 1400px;
+  touch-action: pan-y;
+  outline-offset: 8px;
+}
+
+.cf-card {
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  width: var(--w);
+  aspect-ratio: 3 / 4;
+  margin-left: calc(var(--w) / -2);
+  border-radius: 2px;
+  overflow: hidden;
+  background: #0f3f4f;
+  cursor: pointer;
+  --x: calc(
+    var(--sg) * (var(--w) * 0.5 + var(--gap) + (var(--abs) - 1) * var(--step))
+  );
+  transform: translateX(var(--x)) translateZ(calc(var(--abs) * -90px))
+    rotateY(calc(var(--sg) * var(--rot) * -1))
+    scale(calc(1 - var(--abs) * 0.05));
+  z-index: calc(100 - var(--abs));
+  transition:
+    transform 0.6s cubic-bezier(0.22, 0.8, 0.24, 1),
+    opacity 0.4s ease;
+  box-shadow: 0 18px 40px rgba(15, 63, 79, 0.22);
+}
+
+.cf-card[data-hidden="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cf-card::after {
+  /* makin jauh makin gelap */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(8, 32, 41, calc(var(--abs) * 0.14));
+  transition: background 0.6s;
+}
+
+.cf-grad {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 55%;
+  z-index: 1;
+  background: linear-gradient(to top, rgba(8, 32, 41, 0.72), transparent);
+}
+
+.cf-cap {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2;
+  color: #fff;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.4s 0.15s,
+    transform 0.4s 0.15s;
+}
+
+.cf-card[data-active="true"] .cf-cap {
+  opacity: 1;
+  transform: none;
+}
+
+.cf-cap b {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.cf-cap span {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.cf-floor {
+  /* bayangan lembut di bawah stage */
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: calc(var(--w) * 1.6);
+  height: 36px;
+  margin-left: calc(var(--w) * -0.8);
+  filter: blur(10px);
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(15, 63, 79, 0.28),
+    transparent 70%
+  );
+}
+
+.cf-ctrl {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.cf-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(15, 63, 79, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  color: #17414f;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(15, 63, 79, 0.12);
+}
+
+.cf-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.cf-btn:focus-visible {
+  outline: 2px solid #0f3f4f;
+  outline-offset: 2px;
+}
+
+.cf-dots {
+  display: flex;
+  gap: 8px;
+}
+
+.cf-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(15, 63, 79, 0.2);
+  transition: width 0.3s;
+}
+
+.cf-dots i.on {
+  width: 22px;
+  border-radius: 8px;
+  background: #0f3f4f;
+}
+
+@media (max-width: 767px) {
+  .cf {
+    perspective: 900px;
+    --w: 54vw;
+    --gap: 6px;
+    --step: 20px;
+    --rot: 52deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-card,
+  .cf-cap {
+    transition: none !important;
   }
 }

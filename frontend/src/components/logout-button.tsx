@@ -3,8 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiRequest } from "@/lib/api/client";
+import { cn } from "@/components/ui/cn";
 
-export default function LogoutButton() {
+export default function LogoutButton({
+  variant = "public",
+  className,
+}: {
+  variant?: "public" | "portal" | "menu";
+  className?: string;
+}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
@@ -22,12 +29,26 @@ export default function LogoutButton() {
     }
   }
 
+  const baseClasses =
+    variant === "menu"
+      ? "site-nav-dropdown-item"
+      : "inline-flex min-h-11 items-center rounded-lg border px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60";
+
   return (
     <button
       type="button"
       onClick={logout}
       disabled={pending}
-      className="rounded-full border border-line px-3 py-1.5 text-sm font-medium text-ocean transition-colors hover:border-ocean/50 hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
+      role={variant === "menu" ? "menuitem" : undefined}
+      className={cn(
+        baseClasses,
+        variant === "portal"
+          ? "border-ivory/35 text-ivory hover:bg-ivory/10"
+          : variant === "public"
+            ? "border-line text-ocean hover:border-ocean/40 hover:bg-surface-soft"
+            : undefined,
+        className,
+      )}
     >
       {pending ? "Keluar…" : "Keluar"}
     </button>

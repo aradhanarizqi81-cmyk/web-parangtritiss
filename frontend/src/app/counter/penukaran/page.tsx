@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import RedemptionWorkspace from "./redemption-workspace";
+import AccessDenied from "@/components/ui/access-denied";
+import PageHeader from "@/components/ui/page-header";
 import { getCurrentUser } from "@/lib/auth/guard";
 import { canUseCounter } from "@/lib/auth/roles";
 
@@ -17,30 +19,18 @@ export default async function CounterRedemptionPage() {
 
   if (!canUseCounter(user.role)) {
     return (
-      <section className="mx-auto max-w-2xl px-4 py-12">
-        <h1 className="text-2xl font-semibold">Akses ditolak</h1>
-        <p className="mt-2 text-sm text-muted">
-          Halaman penukaran hanya untuk petugas loket dan administrator.
-          Tampilan ini hanya gerbang UI; otorisasi sebenarnya tetap
-          ditegakkan di backend.
-        </p>
-      </section>
+      <AccessDenied description="Halaman verifikasi hanya untuk petugas loket dan administrator. Tampilan ini hanya gerbang UI; otorisasi sebenarnya tetap ditegakkan di backend." />
     );
   }
 
   return (
-    <section className="mx-auto max-w-3xl px-4 py-12 print:max-w-none print:px-0 print:py-0">
-      <div className="print:hidden">
-        <p className="text-xs uppercase tracking-wide text-muted">
-          Loket tiket
-        </p>
-        <h1 className="text-2xl font-semibold">Penukaran tiket fisik</h1>
-        <p className="mt-2 text-sm text-muted">
-          Pindai kode penukaran pada booking online yang sudah lunas, periksa
-          ringkasannya, konfirmasi penukaran, lalu cetak gelang untuk setiap
-          pengunjung.
-        </p>
-      </div>
+    <section className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
+      <PageHeader
+        className="print:hidden"
+        eyebrow="Loket tiket"
+        title="Verifikasi booking online"
+        description="Pindai kode penukaran pada booking online yang sudah lunas, periksa ringkasannya, lalu verifikasi. Loket 2 tidak mengonsumsi token dan tidak mencetak tiket; pencetakan tiket fisik dilakukan di gate."
+      />
 
       <div className="mt-8 print:mt-0">
         <RedemptionWorkspace />

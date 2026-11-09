@@ -7,7 +7,9 @@ import {
   type KeyboardEvent,
 } from "react";
 import Field from "@/components/field";
+import Alert from "@/components/ui/alert";
 import StatusBadge from "@/components/counter/status-badge";
+import { inputClass } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import {
@@ -22,13 +24,11 @@ type Pending = "lookup" | "claim" | null;
 /** Tidak ada sumber eksternal; dipakai hanya untuk mendeteksi hidrasi. */
 const subscribeToNothing = () => () => {};
 
-const inputClass =
-  "w-full min-w-0 rounded-md border border-line bg-surface px-3 py-2 font-mono text-foreground outline-none transition focus:border-ocean focus:ring-1 focus:ring-ocean";
-
+/* Warna mengikuti token status semantik, bukan nama warna Tailwind lepas. */
 const TONE_STYLES: Record<FacilityTone, string> = {
-  claimable: "border-amber-300 bg-amber-50 text-amber-900",
-  redeemed: "border-emerald-300 bg-emerald-50 text-emerald-900",
-  blocked: "border-red-300 bg-red-50 text-red-700",
+  claimable: "border-warning/30 bg-warning-soft text-warning",
+  redeemed: "border-success/30 bg-success-soft text-success",
+  blocked: "border-danger/30 bg-danger-soft text-danger",
 };
 
 function formatDateTime(value: string | null): string {
@@ -203,7 +203,7 @@ export default function FacilityWorkspace() {
                 void lookup();
               }
             }}
-            className={inputClass}
+            className={inputClass("font-mono")}
           />
         </Field>
 
@@ -225,7 +225,7 @@ export default function FacilityWorkspace() {
 
       {preview ? (
         <div className="space-y-6">
-          <section className="rounded-lg border border-line bg-surface p-4">
+          <section className="card-surface p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">Ringkasan tiket</h2>
               <StatusBadge
@@ -282,7 +282,7 @@ export default function FacilityWorkspace() {
             </dl>
           </section>
 
-          <section className="rounded-lg border border-line bg-surface p-4">
+          <section className="card-surface p-4">
             <h2 className="text-lg font-semibold">Hak fasilitas</h2>
 
             {preview.facilities.length === 0 ? (
@@ -333,7 +333,7 @@ export default function FacilityWorkspace() {
                           ditawarkan. Untuk hak yang sudah diklaim, riwayat
                           klaim di atas sudah menjadi penjelasannya. */}
                       {tone === "blocked" && entitlement.block_reason ? (
-                        <p className="mt-2 text-sm text-red-700">
+                        <p className="mt-2 text-sm text-danger">
                           {entitlement.block_reason}
                         </p>
                       ) : null}
@@ -360,21 +360,15 @@ export default function FacilityWorkspace() {
             {/* Feedback klaim ditampilkan di dekat tombol pemicu agar terlihat
                 di layar kecil tanpa perlu menggulir. */}
             {error ? (
-              <p
-                role="alert"
-                className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-              >
+              <Alert tone="danger" className="mt-3">
                 {error}
-              </p>
+              </Alert>
             ) : null}
 
             {info ? (
-              <p
-                role="status"
-                className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
-              >
+              <Alert tone="success" className="mt-3">
                 {info}
-              </p>
+              </Alert>
             ) : null}
 
             <p className="mt-3 text-xs text-muted">

@@ -33,10 +33,17 @@ class GateCheckinService
     public function checkIn(User $staff, string $token): TransactionCheckin
     {
         return DB::transaction(function () use ($staff, $token): TransactionCheckin {
+            $normalized = trim(str_replace(["\r", "\n"], '', $token));
+
+            // Kode penukaran (RDM-) hanya untuk pencetakan tiket fisik, bukan check-in.
+            if (str_starts_with(strtoupper($normalized), 'RDM-')) {
+                abort(404, 'Barcode tidak dikenali.');
+            }
+
             // Lock by the unique barcode token. An unknown token is answered
             // with a bare 404 so no transaction detail is disclosed.
             $transaction = Transaction::query()
-                ->where('barcode_token', $token)
+                ->where('barcode_token', $normalized)
                 ->lockForUpdate()
                 ->first();
 

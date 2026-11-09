@@ -10,6 +10,7 @@ vi.mock("@/lib/api/bff", async (importOriginal) => {
 import { POST as confirm } from "./confirm/route";
 import { POST as lookup } from "./lookup/route";
 import { POST as print } from "./print/route";
+import { POST as verify } from "./verify/route";
 
 /**
  * The browser only ever talks to the Next BFF. Each redemption action must map
@@ -32,6 +33,7 @@ describe("counter redemption BFF routes", () => {
 
   it.each([
     ["lookup", lookup, "/api/counter/redemptions/lookup", "/api/v1/counter/redemptions/lookup"],
+    ["verify", verify, "/api/counter/redemptions/verify", "/api/v1/counter/redemptions/verify"],
     ["confirm", confirm, "/api/counter/redemptions/confirm", "/api/v1/counter/redemptions/confirm"],
     ["print", print, "/api/counter/redemptions/print", "/api/v1/counter/redemptions/print"],
   ])("maps %s to the Laravel redemption endpoint", async (_name, handler, browserPath, laravelPath) => {

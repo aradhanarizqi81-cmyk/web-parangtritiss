@@ -181,6 +181,14 @@ class TransactionPolicy
         return $user->hasRole(Role::GateStaff, Role::Admin);
     }
 
+    /**
+     * Only gate staff and admins may print physical tickets for online bookings at the gate.
+     */
+    public function printGateTickets(User $user): bool
+    {
+        return $user->hasRole(Role::GateStaff, Role::Admin);
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Counter redemption abilities (penukaran tiket fisik)
@@ -194,9 +202,17 @@ class TransactionPolicy
     */
 
     /**
-     * Look up an online booking by its redemption token (read-only preview).
+     * Look up/verify an online booking by its redemption token (read-only preview/check).
      */
     public function lookupRedemption(User $user): bool
+    {
+        return $user->hasRole(Role::Cashier, Role::Admin);
+    }
+
+    /**
+     * Verify an online booking at the counter for matching only (read-only, no consumption).
+     */
+    public function verifyRedemption(User $user): bool
     {
         return $user->hasRole(Role::Cashier, Role::Admin);
     }

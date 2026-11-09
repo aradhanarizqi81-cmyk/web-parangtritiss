@@ -10,6 +10,9 @@ import {
   type FormEvent,
 } from "react";
 import Field from "@/components/field";
+import Alert from "@/components/ui/alert";
+import { buttonClasses } from "@/components/ui/button";
+import { inputClass } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type { ValidationErrors } from "@/lib/api/types";
@@ -18,15 +21,6 @@ import { estimateCost, formatRupiah } from "@/lib/pricing/tariffs";
 import type { TariffCatalog } from "@/lib/pricing/tariffs";
 
 type VisitorRow = { full_name: string; nik: string };
-
-const inputClass =
-  "w-full min-w-0 rounded-lg border border-[#dcded5] bg-[#fffefa] px-3.5 py-3 text-sm text-[#183b38] outline-none transition placeholder:text-[#969d94] focus:border-[#174a45] focus:ring-4 focus:ring-[#174a45]/10 disabled:cursor-not-allowed disabled:opacity-60";
-
-const buttonSecondaryClass =
-  "inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#dcded5] bg-white px-4 py-2 text-sm font-medium text-[#174a45] transition hover:border-[#174a45]/50 hover:bg-[#f3f0e7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#174a45] disabled:cursor-not-allowed disabled:opacity-40";
-
-const errorClass =
-  "rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700";
 
 function today(): string {
   const now = new Date();
@@ -38,21 +32,43 @@ function SectionHeading({
   number,
   title,
   description,
+  tone = "default",
 }: {
   number: string;
   title: string;
   description: string;
+  tone?: "default" | "on-dark";
 }) {
+  const onDark = tone === "on-dark";
+
   return (
     <div className="flex items-start gap-3">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#f0ece2] font-serif text-sm text-[#174a45]">
+      <span
+        className={
+          onDark
+            ? "flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/15 text-sm text-white"
+            : "flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-soft text-sm text-ocean"
+        }
+      >
         {number}
       </span>
       <div className="min-w-0 pt-0.5">
-        <h2 className="text-lg font-semibold tracking-tight text-[#183b38]">
+        <h2
+          className={
+            onDark
+              ? "text-lg font-semibold tracking-tight text-white"
+              : "text-lg font-semibold tracking-tight text-foreground"
+          }
+        >
           {title}
         </h2>
-        <p className="mt-1 text-sm leading-6 text-[#6b7771]">
+        <p
+          className={
+            onDark
+              ? "mt-1 text-sm leading-6 text-white/70"
+              : "mt-1 text-sm leading-6 text-muted"
+          }
+        >
           {description}
         </p>
       </div>
@@ -215,17 +231,17 @@ export default function BookingForm() {
   if (loadError) {
     return (
       <div className="space-y-4">
-        <div className={errorClass} role="alert">
+        <Alert tone="danger" className="px-4 py-3 leading-6">
           <p className="font-semibold">Tarif belum dapat dimuat</p>
           <p className="mt-1">{loadError}</p>
-        </div>
+        </Alert>
         <button
           type="button"
           onClick={() => {
             setLoadError(null);
             setReloadKey((key) => key + 1);
           }}
-          className={buttonSecondaryClass}
+          className={buttonClasses({ variant: "secondary", size: "md" })}
         >
           Coba muat ulang tarif
         </button>
@@ -236,18 +252,18 @@ export default function BookingForm() {
   if (tariffs === null) {
     return (
       <div
-        className="flex items-center gap-3 rounded-xl border border-[#e4e1d7] bg-white p-5"
+        className="flex items-center gap-3 card-surface p-5"
         role="status"
       >
         <span
-          className="size-5 animate-spin rounded-full border-2 border-[#dcded5] border-t-[#174a45] motion-reduce:animate-none"
+          className="size-5 animate-spin rounded-full border-2 border-line border-t-ocean motion-reduce:animate-none"
           aria-hidden="true"
         />
         <div>
-          <p className="text-sm font-medium text-[#183b38]">
+          <p className="text-sm font-medium text-foreground">
             Menyiapkan formulir booking
           </p>
-          <p className="mt-1 text-xs text-[#6b7771]">
+          <p className="mt-1 text-xs text-muted">
             Sedang mengambil tarif terbaru dari server.
           </p>
         </div>
@@ -258,23 +274,23 @@ export default function BookingForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-5" noValidate>
       {formError && (
-        <div className={errorClass} role="alert">
+        <Alert tone="danger" className="px-4 py-3 leading-6">
           <p className="font-semibold">Booking belum berhasil dibuat</p>
           <p className="mt-1">{formError}</p>
-        </div>
+        </Alert>
       )}
 
       {Object.keys(errors).length > 0 && (
-        <div className={errorClass} role="alert">
+        <Alert tone="danger" className="px-4 py-3 leading-6">
           <p className="font-semibold">Periksa kembali data formulir.</p>
           <p className="mt-1">
             Ada data yang belum sesuai. Lihat keterangan pada kolom yang
             ditandai, kemudian coba kembali.
           </p>
-        </div>
+        </Alert>
       )}
 
-      <section className="rounded-2xl border border-[#e4e1d7] bg-white p-5 shadow-[0_4px_24px_rgba(24,59,56,0.025)] sm:p-7">
+      <section className="card-surface p-5 sm:p-7">
         <SectionHeading
           number="01"
           title="Tanggal kunjungan"
@@ -298,7 +314,7 @@ export default function BookingForm() {
               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 setVisitDate(event.target.value)
               }
-              className={`${inputClass} sm:max-w-sm`}
+              className={inputClass("sm:max-w-sm")}
               aria-invalid={Boolean(errors.visit_date?.[0])}
               aria-describedby={
                 errors.visit_date?.[0] ? "visit_date-error" : undefined
@@ -308,7 +324,7 @@ export default function BookingForm() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#e4e1d7] bg-white p-5 shadow-[0_4px_24px_rgba(24,59,56,0.025)] sm:p-7">
+      <section className="card-surface p-5 sm:p-7">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <SectionHeading
             number="02"
@@ -319,7 +335,7 @@ export default function BookingForm() {
           <button
             type="button"
             onClick={addVisitor}
-            className={buttonSecondaryClass}
+            className={buttonClasses({ variant: "secondary", size: "md" })}
           >
             <span aria-hidden="true" className="text-lg leading-none">
               +
@@ -328,8 +344,8 @@ export default function BookingForm() {
           </button>
         </div>
 
-        <div className="mt-5 rounded-lg border border-[#e9d8b8] bg-[#faf8f2] px-4 py-3">
-          <p className="text-xs leading-5 text-[#53645d]">
+        <div className="mt-5 rounded-lg border border-sand bg-background px-4 py-3">
+          <p className="text-xs leading-5 text-muted">
             NIK harus terdiri dari 16 angka. Masukkan data sesuai identitas
             masing-masing pengunjung. Informasi sensitif tidak ditampilkan
             pada URL atau barcode.
@@ -344,14 +360,14 @@ export default function BookingForm() {
             return (
               <li
                 key={index}
-                className="rounded-xl border border-[#e4e1d7] bg-[#fffefa] p-4 sm:p-5"
+                className="card-surface p-4 sm:p-5"
               >
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <span className="flex size-8 items-center justify-center rounded-full bg-[#f0ece2] text-xs font-semibold text-[#174a45]">
+                    <span className="flex size-8 items-center justify-center rounded-full bg-surface-soft text-xs font-semibold text-ocean">
                       {String(index + 1).padStart(2, "0")}
                     </span>
-                    <h3 className="text-sm font-semibold text-[#183b38]">
+                    <h3 className="text-sm font-semibold text-foreground">
                       Pengunjung {index + 1}
                     </h3>
                   </div>
@@ -360,7 +376,7 @@ export default function BookingForm() {
                     type="button"
                     onClick={() => removeVisitor(index)}
                     disabled={visitors.length <= 1 || pending}
-                    className="rounded-full px-3 py-2 text-xs font-medium text-[#8b5148] transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-35"
+                    className="rounded-lg px-3 py-2 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-35"
                     aria-label={`Hapus pengunjung ${index + 1}`}
                   >
                     Hapus
@@ -384,7 +400,7 @@ export default function BookingForm() {
                       onChange={(event) =>
                         updateVisitor(index, "full_name", event.target.value)
                       }
-                      className={inputClass}
+                      className={inputClass()}
                       placeholder="Nama sesuai identitas"
                       aria-invalid={Boolean(nameError)}
                     />
@@ -409,7 +425,7 @@ export default function BookingForm() {
                       onChange={(event) =>
                         updateVisitor(index, "nik", event.target.value)
                       }
-                      className={inputClass}
+                      className={inputClass()}
                       placeholder="Masukkan 16 digit NIK"
                       aria-invalid={Boolean(nikError)}
                     />
@@ -420,24 +436,24 @@ export default function BookingForm() {
           })}
         </ol>
 
-        <div className="mt-5 flex items-center justify-between border-t border-[#e4e1d7] pt-4">
-          <p className="text-xs text-[#6b7771]">Jumlah pengunjung</p>
-          <p className="text-sm font-semibold text-[#183b38]">
+        <div className="mt-5 flex items-center justify-between border-t border-line pt-4">
+          <p className="text-xs text-muted">Jumlah pengunjung</p>
+          <p className="text-sm font-semibold text-foreground">
             {visitors.length} orang
           </p>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#e4e1d7] bg-white p-5 shadow-[0_4px_24px_rgba(24,59,56,0.025)] sm:p-7">
+      <section className="card-surface p-5 sm:p-7">
         <SectionHeading
           number="03"
           title="Kendaraan"
           description="Tambahkan kendaraan yang digunakan selama kunjungan."
         />
 
-        <div className="mt-6 divide-y divide-[#e4e1d7]">
+        <div className="mt-6 divide-y divide-line">
           {tariffs.vehicle_types.length === 0 ? (
-            <p className="py-4 text-sm text-[#6b7771]">
+            <p className="py-4 text-sm text-muted">
               Belum ada jenis kendaraan aktif.
             </p>
           ) : (
@@ -448,7 +464,7 @@ export default function BookingForm() {
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <span
-                    className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#f3f0e7] text-[#174a45]"
+                    className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-soft text-ocean"
                     aria-hidden="true"
                   >
                     <svg
@@ -469,10 +485,10 @@ export default function BookingForm() {
                   </span>
 
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[#183b38]">
+                    <p className="text-sm font-semibold text-foreground">
                       {type.name}
                     </p>
-                    <p className="mt-1 text-xs text-[#6b7771]">
+                    <p className="mt-1 text-xs text-muted">
                       {formatRupiah(type.unit_tariff)} per unit
                     </p>
                   </div>
@@ -496,7 +512,7 @@ export default function BookingForm() {
                       updateQuantity(type.id, event.target.value)
                     }
                     disabled={pending}
-                    className={`${inputClass} text-right tabular-nums`}
+                    className={inputClass("text-right tabular-nums")}
                   />
                 </div>
               </div>
@@ -504,18 +520,19 @@ export default function BookingForm() {
           )}
         </div>
 
-        <p className="mt-5 text-xs leading-5 text-[#6b7771]">
+        <p className="mt-5 text-xs leading-5 text-muted">
           Tarif kendaraan mengikuti daftar tarif aktif yang diterima dari
           server. Biarkan jumlah nol jika tidak membawa kendaraan.
         </p>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-[#103632] bg-[#174a45] text-white shadow-[0_8px_32px_rgba(16,54,50,0.10)]">
+      <section className="overflow-hidden rounded-lg border border-ocean-dark bg-ocean text-ivory shadow-raised">
         <div className="p-5 sm:p-7">
           <SectionHeading
             number="04"
             title="Ringkasan biaya"
             description="Periksa estimasi biaya sebelum membuat booking."
+            tone="on-dark"
           />
 
           <dl className="mt-7 space-y-4">
@@ -571,7 +588,7 @@ export default function BookingForm() {
           </div>
         </div>
 
-        <div className="bg-[#103632] px-5 py-4 sm:px-7">
+        <div className="bg-ocean-dark px-5 py-4 sm:px-7">
           <p className="text-xs leading-6 text-white/70">
             Pembuatan booking belum berarti pembayaran selesai. Ikuti status
             transaksi pada halaman detail untuk melanjutkan pembayaran
@@ -580,13 +597,13 @@ export default function BookingForm() {
         </div>
       </section>
 
-      <div className="rounded-2xl border border-[#e4e1d7] bg-white p-5 sm:p-6">
+      <div className="card-surface p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="max-w-md">
-            <h2 className="font-semibold text-[#183b38]">
+            <h2 className="font-semibold text-foreground">
               Siap membuat booking?
             </h2>
-            <p className="mt-1 text-sm leading-6 text-[#6b7771]">
+            <p className="mt-1 text-sm leading-6 text-muted">
               Pastikan data pengunjung dan tanggal kunjungan sudah benar
               sebelum melanjutkan.
             </p>
@@ -595,7 +612,7 @@ export default function BookingForm() {
           <button
             type="submit"
             disabled={pending}
-            className="inline-flex min-h-12 shrink-0 items-center justify-center gap-3 rounded-full bg-[#174a45] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#103632] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[#174a45] disabled:cursor-not-allowed disabled:opacity-60"
+            className={buttonClasses({ size: "lg", className: "shrink-0 gap-3" })}
           >
             {pending ? (
               <>

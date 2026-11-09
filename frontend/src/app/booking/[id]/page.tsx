@@ -2,6 +2,11 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import BarcodeSvg from "@/components/barcode-svg";
 import StatusBadge from "@/components/counter/status-badge";
+import AccessDenied from "@/components/ui/access-denied";
+import Alert from "@/components/ui/alert";
+import { buttonClasses } from "@/components/ui/button";
+import Card from "@/components/ui/card";
+import PageHeader from "@/components/ui/page-header";
 import PaymentSimulation from "./payment-simulation";
 import { getCurrentUser } from "@/lib/auth/guard";
 import { canUseBooking } from "@/lib/auth/roles";
@@ -23,9 +28,9 @@ function DetailRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex justify-between gap-4 py-1.5">
-      <dt className="text-muted">{label}</dt>
-      <dd className="text-right text-foreground">{children}</dd>
+    <div className="flex justify-between gap-4 border-b border-line py-2 last:border-b-0">
+      <dt className="text-sm text-muted">{label}</dt>
+      <dd className="text-right text-sm text-foreground">{children}</dd>
     </div>
   );
 }
@@ -43,14 +48,7 @@ export default async function BookingDetailPage({
   }
 
   if (!canUseBooking(user.role)) {
-    return (
-      <section className="mx-auto max-w-2xl px-4 py-12">
-        <h1 className="text-2xl font-semibold">Akses ditolak</h1>
-        <p className="mt-2 text-sm text-muted">
-          Anda tidak berhak melihat booking ini.
-        </p>
-      </section>
-    );
+    return <AccessDenied description="Anda tidak berhak melihat booking ini." />;
   }
 
   const result = await fetchBooking(id);
@@ -61,12 +59,7 @@ export default async function BookingDetailPage({
 
     return (
       <section className="mx-auto max-w-2xl px-4 py-12">
-        <p
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
-          {result.message}
-        </p>
+        <Alert tone="danger">{result.message}</Alert>
         <Link
           href="/booking/history"
           className="mt-6 inline-block text-sm font-medium text-ocean hover:underline"
@@ -88,66 +81,62 @@ export default async function BookingDetailPage({
 
   return (
     <section className="mx-auto max-w-3xl px-4 py-12">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted">
-            Booking online
-          </p>
-          <h1 className="font-mono text-xl font-semibold">
-            {booking.transaction_code}
-          </h1>
-        </div>
-        <StatusBadge status={booking.status} label={booking.status_label} />
-      </div>
+      <PageHeader
+        eyebrow="Booking online"
+        title={booking.transaction_code}
+        titleClassName="font-mono text-xl sm:text-2xl"
+        actions={
+          <StatusBadge status={booking.status} label={booking.status_label} />
+        }
+      />
 
       {paymentSucceeded ? (
-        <p
-          role="status"
-          className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
-        >
+        <Alert tone="success" className="mt-4">
           Pembayaran berhasil. Kode penukaran di bawah dipakai untuk mengambil
           tiket fisik (gelang) di loket.
-        </p>
+        </Alert>
       ) : null}
 
       {user.role === "admin" ? (
-        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <Alert tone="warning" className="mt-4">
           Mode admin: hanya membaca. Membayar atas nama wisatawan tidak
           tersedia bagi administrator.
-        </p>
+        </Alert>
       ) : null}
 
-      <dl className="mt-6 rounded-lg border border-line bg-surface p-4 text-sm">
-        <DetailRow label="Tanggal kunjungan">
-          {booking.visit_date ?? "—"}
-        </DetailRow>
-        <DetailRow label="Pemilik">
-          {booking.owner?.name ?? "—"}
-        </DetailRow>
-        <DetailRow label="Jumlah wisatawan">{booking.visitor_count}</DetailRow>
-        <DetailRow label="Tarif per wisatawan">
-          {formatRupiah(booking.visitor_unit_tariff)}
-        </DetailRow>
-        <DetailRow label="Subtotal wisatawan">
-          {formatRupiah(booking.visitor_total)}
-        </DetailRow>
-        <DetailRow label="Subtotal kendaraan">
-          {formatRupiah(booking.vehicle_total)}
-        </DetailRow>
-        <DetailRow label="Total">
-          <span className="font-semibold">
-            {formatRupiah(booking.total_amount)}
-          </span>
-        </DetailRow>
-      </dl>
+      <Card className="mt-6">
+        <dl>
+          <DetailRow label="Tanggal kunjungan">
+            {booking.visit_date ?? "—"}
+          </DetailRow>
+          <DetailRow label="Pemilik">{booking.owner?.name ?? "—"}</DetailRow>
+          <DetailRow label="Jumlah wisatawan">
+            {booking.visitor_count}
+          </DetailRow>
+          <DetailRow label="Tarif per wisatawan">
+            {formatRupiah(booking.visitor_unit_tariff)}
+          </DetailRow>
+          <DetailRow label="Subtotal wisatawan">
+            {formatRupiah(booking.visitor_total)}
+          </DetailRow>
+          <DetailRow label="Subtotal kendaraan">
+            {formatRupiah(booking.vehicle_total)}
+          </DetailRow>
+          <DetailRow label="Total">
+            <span className="font-semibold">
+              {formatRupiah(booking.total_amount)}
+            </span>
+          </DetailRow>
+        </dl>
+      </Card>
 
-      <section className="mt-6 rounded-lg border border-line bg-surface p-4">
+      <Card className="mt-6">
         <h2 className="text-lg font-semibold">Pengunjung</h2>
-        <ul className="mt-3 space-y-2 text-sm">
+        <ul className="mt-3 divide-y divide-line text-sm">
           {booking.visitors.map((visitor) => (
             <li
               key={visitor.id}
-              className="flex justify-between gap-4 rounded-md border border-line px-3 py-2"
+              className="flex justify-between gap-4 py-2 first:pt-0 last:pb-0"
             >
               <span>{visitor.full_name}</span>
               <span className="font-mono text-xs text-muted">
@@ -156,16 +145,16 @@ export default async function BookingDetailPage({
             </li>
           ))}
         </ul>
-      </section>
+      </Card>
 
       {booking.vehicles.length > 0 ? (
-        <section className="mt-6 rounded-lg border border-line bg-surface p-4">
+        <Card className="mt-6">
           <h2 className="text-lg font-semibold">Kendaraan</h2>
-          <ul className="mt-3 space-y-2 text-sm">
+          <ul className="mt-3 divide-y divide-line text-sm">
             {booking.vehicles.map((vehicle) => (
               <li
                 key={vehicle.vehicle_type_id}
-                className="flex justify-between gap-4"
+                className="flex justify-between gap-4 py-2 first:pt-0 last:pb-0"
               >
                 <span>
                   {vehicle.name ?? "Kendaraan"} ({vehicle.quantity} ×{" "}
@@ -177,13 +166,13 @@ export default async function BookingDetailPage({
               </li>
             ))}
           </ul>
-        </section>
+        </Card>
       ) : null}
 
-      <section className="mt-6 rounded-lg border border-line bg-surface p-4">
+      <Card className="mt-6">
         <h2 className="text-lg font-semibold">Pembayaran</h2>
         {booking.payment ? (
-          <dl className="mt-3 text-sm">
+          <dl className="mt-3">
             <DetailRow label="Metode">
               {booking.payment.method_label}
             </DetailRow>
@@ -202,10 +191,10 @@ export default async function BookingDetailPage({
             Belum ada catatan pembayaran.
           </p>
         )}
-      </section>
+      </Card>
 
       {showRedemptionCode && redemptionToken ? (
-        <section className="mt-6 rounded-lg border border-line bg-surface p-4">
+        <Card className="mt-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Kode penukaran loket</h2>
             <StatusBadge
@@ -219,7 +208,7 @@ export default async function BookingDetailPage({
             untuk masuk gerbang — barcode gerbang tercetak terpisah di gelang.
           </p>
 
-          <div className="mt-4 rounded-md border border-line bg-white p-3">
+          <div className="mt-4 rounded-lg border border-line bg-white p-3">
             <BarcodeSvg value={redemptionToken} height={72} />
             <p className="mt-2 break-all text-center font-mono text-xs text-muted">
               {redemptionToken}
@@ -234,7 +223,7 @@ export default async function BookingDetailPage({
                 : ""}
             </p>
           ) : null}
-        </section>
+        </Card>
       ) : null}
 
       {canPay && reference ? (
@@ -244,18 +233,18 @@ export default async function BookingDetailPage({
       ) : null}
 
       {isOwner && booking.status === "pending" && !reference ? (
-        <p className="mt-6 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <Alert tone="danger" className="mt-6">
           Referensi simulasi tidak tersedia. Hubungi administrator.
-        </p>
+        </Alert>
       ) : null}
 
-      <section className="mt-6 rounded-lg border border-line bg-surface p-4">
+      <Card className="mt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Tiket</h2>
           {canPrint && booking.tickets.length > 0 ? (
             <Link
               href={`/booking/${booking.id}/print`}
-              className="inline-flex min-h-11 items-center justify-center rounded-full bg-ocean px-5 py-2 font-semibold text-ivory transition-colors hover:bg-ocean-dark"
+              className={buttonClasses({ size: "md" })}
             >
               Lihat Pratinjau Tiket
             </Link>
@@ -273,11 +262,11 @@ export default async function BookingDetailPage({
             Tiket diterbitkan otomatis setelah pembayaran berhasil.
           </p>
         ) : (
-          <ul className="mt-3 space-y-2 text-sm">
+          <ul className="mt-3 divide-y divide-line text-sm">
             {booking.tickets.map((ticket) => (
               <li
                 key={ticket.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"
               >
                 <span className="font-mono text-xs">{ticket.ticket_code}</span>
                 <StatusBadge
@@ -288,7 +277,7 @@ export default async function BookingDetailPage({
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
       <div className="mt-6">
         <Link

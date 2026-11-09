@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Alert from "@/components/ui/alert";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 
@@ -94,21 +95,15 @@ export default function TransactionActions({
       </div>
 
       {message ? (
-        <p
-          role="status"
-          className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
-        >
+        <Alert tone="success">
           {message}
-        </p>
+        </Alert>
       ) : null}
 
       {error ? (
-        <p
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
+        <Alert tone="danger">
           {error}
-        </p>
+        </Alert>
       ) : null}
     </div>
   );

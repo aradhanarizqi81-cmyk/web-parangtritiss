@@ -1,29 +1,27 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { BarcodeDetector } from "barcode-detector/ponyfill";
 import Field from "@/components/field";
+import Alert from "@/components/ui/alert";
 import StatusBadge from "@/components/counter/status-badge";
-import WristbandCard from "@/components/counter/wristband-card";
+import { inputClass } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import {
-  hasPrintedTickets,
   redemptionTone,
-  wristbandButtonLabel,
   type RedemptionTone,
 } from "@/lib/counter/redemption";
 import type { RedemptionTransaction } from "@/lib/counter/types";
 import { formatRupiah } from "@/lib/pricing/tariffs";
 
-type Pending = "lookup" | "confirm" | "print" | null;
+type Pending = "lookup" | "verify" | null;
 
-const inputClass =
-  "w-full min-w-0 rounded-md border border-line bg-surface px-3 py-2 font-mono text-foreground outline-none transition focus:border-ocean focus:ring-1 focus:ring-ocean";
-
+/* Warna mengikuti token status semantik, bukan nama warna Tailwind lepas. */
 const TONE_STYLES: Record<RedemptionTone, string> = {
-  redeemable: "border-amber-300 bg-amber-50 text-amber-900",
-  redeemed: "border-emerald-300 bg-emerald-50 text-emerald-900",
-  blocked: "border-red-300 bg-red-50 text-red-700",
+  redeemable: "border-warning/30 bg-warning-soft text-warning",
+  redeemed: "border-success/30 bg-success-soft text-success",
+  blocked: "border-danger/30 bg-danger-soft text-danger",
 };
 
 function formatRedeemedAt(value: string | null): string {
@@ -39,34 +37,83 @@ function formatRedeemedAt(value: string | null): string {
 }
 
 /**
- * Meja penukaran tiket fisik di loket.
+ * Meja verifikasi booking online (Loket 2).
  *
- * Alurnya: pindai/ketik kode penukaran → pratinjau pesanan (hanya baca) →
- * konfirmasi penukaran → cetak gelang. Kode penukaran tidak pernah masuk ke
- * URL; barcode identitas tiket individual pada gelang terpisah dari check-in.
+ * Alurnya: pindai/ketik kode penukaran → pratinjau pesanan → verifikasi
+ * read-only. Loket 2 tidak mengonsumsi token, tidak menandai booking sebagai
+ * sudah ditukarkan, dan tidak mencetak tiket fisik; pencetakan dilakukan di
+ * gate. Kode penukaran tidak pernah masuk ke URL.
  *
- * Prinsipnya: memindai atau membuka pratinjau TIDAK menandai booking sebagai
- * sudah ditukarkan. Backend tetap sumber kebenaran (422 bila belum lunas, 409
- * bila sudah ditukarkan, dengan penguncian baris).
+ * Prinsipnya: memindai, membuka pratinjau, atau menekan verifikasi TIDAK
+ * menandai booking sebagai sudah ditukarkan. Backend tetap sumber kebenaran
+ * dan token hanya dikonsumsi oleh alur gate print.
  */
 export default function RedemptionWorkspace() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const detectorRef = useRef<BarcodeDetector | null>(null);
+  const scanTimerRef = useRef<number | null>(null);
+  const scanningRef = useRef(false);
+  const lookupPendingRef = useRef(false);
+  const lastTokenRef = useRef<string>("");
+  const stopRequestedRef = useRef(false);
+
   const [code, setCode] = useState("");
   const [scannedToken, setScannedToken] = useState<string | null>(null);
   const [preview, setPreview] = useState<RedemptionTransaction | null>(null);
   const [pending, setPending] = useState<Pending>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [mode, setMode] = useState<"scanner" | "camera">("scanner");
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraStatus, setCameraStatus] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  useEffect(() => {
+    lookupPendingRef.current = pending === "lookup";
+  }, [pending]);
+
+  function stopCamera() {
+    stopRequestedRef.current = true;
+    scanningRef.current = false;
+
+    if (scanTimerRef.current !== null) {
+      window.clearInterval(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
+
+    const stream = streamRef.current;
+    if (stream) {
+      for (const track of stream.getTracks()) {
+        track.stop();
+      }
+      streamRef.current = null;
+    }
+
+    const video = videoRef.current;
+    if (video) {
+      video.srcObject = null;
+    }
+
+    detectorRef.current = null;
+    setCameraActive(false);
+    setCameraStatus(null);
+  }
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
 
   function focusInput() {
     inputRef.current?.focus();
     inputRef.current?.select();
   }
 
-  async function onLookup(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const entered = code.trim();
+  async function doLookup(token: string) {
+    const entered = token.trim();
     if (entered === "") {
       focusInput();
       return;
@@ -97,13 +144,21 @@ export default function RedemptionWorkspace() {
     } finally {
       setPending(null);
       focusInput();
+      if (cameraActive) {
+        scanningRef.current = true;
+      }
     }
   }
 
-  async function onConfirm() {
+  async function onLookup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await doLookup(code);
+  }
+
+  async function onVerify() {
     if (!scannedToken) return;
 
-    setPending("confirm");
+    setPending("verify");
     setError(null);
     setInfo(null);
 
@@ -111,21 +166,21 @@ export default function RedemptionWorkspace() {
       const response = await apiRequest<{
         message: string;
         data: RedemptionTransaction;
-      }>("/api/counter/redemptions/confirm", {
+      }>("/api/counter/redemptions/verify", {
         redemption_token: scannedToken,
       });
 
       setPreview(response.data);
-      setInfo(response.message);
+      setInfo(
+        response.message ||
+          "Booking terverifikasi. Silakan menuju gate untuk pencetakan tiket fisik.",
+      );
     } catch (caught) {
       setError(
         caught instanceof ApiError
           ? caught.message
           : "Terjadi kesalahan yang tidak terduga.",
       );
-      // Segarkan pratinjau agar status can_redeem/redeemed mencerminkan
-      // kebenaran backend (mis. 409 sudah ditukarkan petugas lain), sehingga
-      // tombol konfirmasi tidak tetap aktif untuk aksi yang mustahil.
       await refreshPreview(scannedToken);
     } finally {
       setPending(null);
@@ -141,38 +196,141 @@ export default function RedemptionWorkspace() {
       );
       setPreview(response.data);
     } catch {
-      // Jika lookup ulang gagal, biarkan pesan error konfirmasi yang tampil.
+      // Jika lookup ulang gagal, biarkan pesan error verifikasi yang tampil.
     }
   }
 
-  async function onPrint() {
-    if (!scannedToken) return;
+  async function startCamera() {
+    if (cameraActive || lookupPendingRef.current || pending !== null) {
+      return;
+    }
 
-    setPending("print");
+    stopRequestedRef.current = false;
+    setCameraError(null);
     setError(null);
     setInfo(null);
+    setCameraStatus("Meminta izin kamera...");
 
     try {
-      const response = await apiRequest<{
-        message: string;
-        data: RedemptionTransaction;
-      }>("/api/counter/redemptions/print", {
-        redemption_token: scannedToken,
-      });
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices?.getUserMedia
+      ) {
+        setCameraError("Kamera tidak tersedia di perangkat ini.");
+        setCameraStatus(null);
+        return;
+      }
 
-      setPreview(response.data);
-      setInfo(response.message);
-      // Gelang sudah berada di DOM sebelum dialog cetak dibuka.
-      window.print();
-    } catch (caught) {
-      setError(
-        caught instanceof ApiError
-          ? caught.message
-          : "Terjadi kesalahan yang tidak terduga.",
+      const detector = new BarcodeDetector({
+        formats: ["qr_code", "code_128"],
+      });
+      detectorRef.current = detector;
+
+      let stream: MediaStream | null = null;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false,
+        });
+      } catch {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "NotAllowedError") {
+            setCameraError(
+              "Izin akses kamera ditolak. Gunakan mode scanner fisik.",
+            );
+          } else if (err instanceof DOMException && err.name === "NotFoundError") {
+            setCameraError("Tidak ditemukan kamera yang dapat digunakan.");
+          } else {
+            setCameraError("Tidak dapat mengakses kamera.");
+          }
+          setCameraStatus(null);
+          detectorRef.current = null;
+          return;
+        }
+      }
+
+      if (stopRequestedRef.current) {
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
+        return;
+      }
+
+      streamRef.current = stream;
+      const video = videoRef.current;
+
+      if (video) {
+        video.srcObject = stream;
+        try {
+          await video.play();
+        } catch {
+          // ignore
+        }
+      }
+
+      setCameraActive(true);
+      setCameraStatus(
+        "Arahkan kamera ke QR kode penukaran (atau kode pada tiket).",
       );
-    } finally {
-      setPending(null);
+      lastTokenRef.current = "";
+      scanningRef.current = true;
+
+      if (scanTimerRef.current !== null) {
+        window.clearInterval(scanTimerRef.current);
+      }
+
+      scanTimerRef.current = window.setInterval(async () => {
+        if (stopRequestedRef.current || !scanningRef.current) {
+          return;
+        }
+        if (lookupPendingRef.current || pending !== null) {
+          return;
+        }
+
+        const detector = detectorRef.current;
+        const videoEl = videoRef.current;
+        if (!detector || !videoEl) return;
+        if (videoEl.readyState < 2) return;
+
+        try {
+          const barcodes = await detector.detect(videoEl);
+          if (!barcodes || barcodes.length === 0) return;
+          const raw = barcodes[0]?.rawValue ?? "";
+          const normalizedRaw = raw.replace(/\r?\n/g, "").trim().replace(/\s+/g, "");
+          if (!normalizedRaw) return;
+          if (normalizedRaw === lastTokenRef.current) return;
+          lastTokenRef.current = normalizedRaw;
+          scanningRef.current = false;
+          await doLookup(normalizedRaw);
+        } catch {
+          // ignore
+        }
+      }, 250);
+    } catch {
+      setCameraError("Tidak dapat memulai pemindaian kamera.");
+      setCameraStatus(null);
+      detectorRef.current = null;
     }
+  }
+
+  function switchToScanner() {
+    stopCamera();
+    setCameraError(null);
+    setMode("scanner");
+    setTimeout(() => focusInput(), 0);
+  }
+
+  function switchToCamera() {
+    setMode("camera");
+    setCameraError(null);
+    setError(null);
+    setInfo(null);
   }
 
   function onReset() {
@@ -181,6 +339,10 @@ export default function RedemptionWorkspace() {
     setCode("");
     setError(null);
     setInfo(null);
+    lastTokenRef.current = "";
+    if (cameraActive) {
+      scanningRef.current = true;
+    }
     focusInput();
   }
 
@@ -189,48 +351,133 @@ export default function RedemptionWorkspace() {
   return (
     <section className="space-y-6">
       <div className="print:hidden">
-        <form onSubmit={onLookup} className="space-y-4" noValidate>
-          <Field
-            id="redemption_token"
-            label="Kode penukaran"
-            hint="Pindai barcode penukaran dengan scanner, atau ketik kodenya lalu tekan Enter."
-            error={preview ? undefined : (error ?? undefined)}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={switchToScanner}
+            className={`inline-flex min-h-10 items-center justify-center rounded-full px-4 py-1 text-sm font-semibold transition-colors ${
+              mode === "scanner"
+                ? "bg-ocean text-ivory"
+                : "border border-line bg-surface text-foreground hover:bg-surface-soft"
+            }`}
           >
-            <input
-              ref={inputRef}
-              id="redemption_token"
-              name="redemption_token"
-              type="text"
-              autoComplete="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              autoFocus
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              className={inputClass}
-            />
-          </Field>
+            Mode scanner fisik
+          </button>
 
           <button
-            type="submit"
-            disabled={pending !== null}
-            className="inline-flex min-h-11 items-center justify-center rounded-full bg-ocean px-5 py-2.5 font-semibold text-ivory transition-colors hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-60"
+            type="button"
+            onClick={switchToCamera}
+            className={`inline-flex min-h-10 items-center justify-center rounded-full px-4 py-1 text-sm font-semibold transition-colors ${
+              mode === "camera"
+                ? "bg-ocean text-ivory"
+                : "border border-line bg-surface text-foreground hover:bg-surface-soft"
+            }`}
           >
-            {pending === "lookup" ? "Memeriksa…" : "Periksa Kode"}
+            Mode kamera
           </button>
-        </form>
+        </div>
+
+        {mode === "scanner" ? (
+          <form onSubmit={onLookup} className="space-y-4" noValidate>
+            <Field
+              id="redemption_token"
+              label="Kode penukaran"
+              hint="Pindai barcode penukaran dengan scanner fisik, atau ketik kodenya lalu tekan Enter."
+              error={preview ? undefined : (error ?? undefined)}
+            >
+              <input
+                ref={inputRef}
+                id="redemption_token"
+                name="redemption_token"
+                type="text"
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                autoFocus
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                className={inputClass("font-mono")}
+              />
+            </Field>
+
+            <button
+              type="submit"
+              disabled={pending !== null}
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-ocean px-5 py-2.5 font-semibold text-ivory transition-colors hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {pending === "lookup" ? "Memeriksa…" : "Periksa Kode"}
+            </button>
+          </form>
+        ) : (
+          <section className="card-surface p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-medium text-foreground">
+                  Pemindaian dengan kamera
+                </h2>
+                <p className="mt-1 text-xs text-muted">
+                  Arahkan kamera ke QR kode penukaran pada halaman booking pengunjung.
+                  Kamera belakang diprioritaskan bila tersedia.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {!cameraActive ? (
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    disabled={pending !== null}
+                    className="inline-flex min-h-10 items-center justify-center rounded-full bg-ocean px-4 py-1 text-sm font-semibold text-ivory transition-colors hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Aktifkan kamera
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    className="inline-flex min-h-10 items-center justify-center rounded-full border border-line bg-surface px-4 py-1 text-sm font-semibold text-foreground transition-colors hover:bg-surface-soft"
+                  >
+                    Hentikan kamera
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-3 overflow-hidden rounded-md border border-line bg-black">
+              <video
+                ref={videoRef}
+                className="aspect-video w-full object-cover"
+                playsInline
+                muted
+                autoPlay
+              />
+            </div>
+
+            {cameraStatus ? (
+              <p role="status" className="mt-2 text-xs text-muted">
+                {cameraStatus}
+              </p>
+            ) : null}
+
+            {cameraError ? (
+              <p role="alert" className="mt-2 text-xs font-medium text-danger">
+                {cameraError}
+              </p>
+            ) : null}
+          </section>
+        )}
 
         <p className="mt-4 rounded-md border border-line bg-surface-soft px-3 py-2 text-xs text-muted">
-          Kode penukaran hanya untuk mengambil booking online di loket. Barcode
-          gelang mengidentifikasi tiket individual, bukan token check-in
-          gerbang; penukaran tidak mencatat check-in.
+          Loket 2 memverifikasi booking online tanpa mengonsumsi token dan tanpa
+          mencetak tiket. Pencetakan tiket fisik dilakukan petugas gate; barcode
+          gelang tetap menjadi identitas tiket individual, bukan token check-in.
         </p>
       </div>
 
       {preview && tone ? (
         <>
           <div className="print:hidden space-y-6">
-            <section className="rounded-lg border border-line bg-surface p-4">
+            <section className="card-surface p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold">Ringkasan pesanan</h2>
                 <StatusBadge
@@ -291,8 +538,8 @@ export default function RedemptionWorkspace() {
               </ul>
             </section>
 
-            <section className="rounded-lg border border-line bg-surface p-4">
-              <h2 className="text-lg font-semibold">Status penukaran</h2>
+            <section className="card-surface p-4">
+              <h2 className="text-lg font-semibold">Status verifikasi</h2>
 
               <p
                 className={`mt-3 inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold ${TONE_STYLES[tone]}`}
@@ -301,45 +548,35 @@ export default function RedemptionWorkspace() {
               </p>
 
               {preview.redemption.block_reason ? (
-                <p className="mt-3 text-sm text-red-700">
+                <p className="mt-3 text-sm text-warning">
                   {preview.redemption.block_reason}
                 </p>
               ) : null}
 
               {preview.redemption.redeemed ? (
                 <p className="mt-3 text-sm text-muted">
-                  Ditukarkan {formatRedeemedAt(preview.redemption.redeemed_at)}
+                  Sudah ditukarkan{" "}
+                  {formatRedeemedAt(preview.redemption.redeemed_at)}
                   {preview.redemption.redeemed_by
                     ? ` oleh ${preview.redemption.redeemed_by.name}`
                     : ""}
-                  .
+                  . Token sudah tidak dapat dicetak ulang di gate.
                 </p>
               ) : null}
 
               <div className="mt-4 flex flex-wrap gap-3">
-                {preview.redemption.can_redeem ? (
+                {!preview.redemption.redeemed ? (
                   <button
                     type="button"
-                    onClick={onConfirm}
+                    onClick={() => {
+                      void onVerify();
+                    }}
                     disabled={pending !== null}
                     className="inline-flex min-h-11 items-center justify-center rounded-full bg-ocean px-5 py-2 font-semibold text-ivory transition-colors hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {pending === "confirm"
-                      ? "Mencatat…"
-                      : "Konfirmasi Penukaran"}
-                  </button>
-                ) : null}
-
-                {preview.redemption.redeemed ? (
-                  <button
-                    type="button"
-                    onClick={onPrint}
-                    disabled={pending !== null}
-                    className="inline-flex min-h-11 items-center justify-center rounded-full border border-line bg-surface px-5 py-2 font-semibold text-foreground transition-colors hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {pending === "print"
-                      ? "Mencatat…"
-                      : wristbandButtonLabel(hasPrintedTickets(preview.tickets))}
+                    {pending === "verify"
+                      ? "Memverifikasi…"
+                      : "Verifikasi Booking"}
                   </button>
                 ) : null}
 
@@ -349,54 +586,25 @@ export default function RedemptionWorkspace() {
                   disabled={pending !== null}
                   className="inline-flex min-h-11 items-center justify-center rounded-full border border-line bg-surface px-5 py-2 font-semibold text-foreground transition-colors hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Penukaran baru
+                  Verifikasi baru
                 </button>
               </div>
 
-              {/* Feedback konfirmasi/cetak ditampilkan di dekat tombol pemicu
-                  agar terlihat di layar kecil tanpa perlu menggulir. */}
+              {/* Feedback verifikasi ditampilkan di dekat tombol pemicu agar
+                  terlihat di layar kecil tanpa perlu menggulir. */}
               {error ? (
-                <p
-                  role="alert"
-                  className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-                >
+                <Alert tone="danger" className="mt-3">
                   {error}
-                </p>
+                </Alert>
               ) : null}
 
               {info ? (
-                <p
-                  role="status"
-                  className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
-                >
+                <Alert tone="success" className="mt-3">
                   {info}
-                </p>
-              ) : null}
-
-              {preview.redemption.redeemed ? (
-                <p className="mt-3 text-xs text-muted">
-                  Cetak ulang tidak membuat tiket baru, tidak menggandakan
-                  penukaran, dan tidak membuat check-in gerbang. Berhasilnya
-                  pencatatan tidak membuktikan gelang tercetak secara fisik.
-                </p>
+                </Alert>
               ) : null}
             </section>
           </div>
-
-          {/* Gelang hanya dirender setelah penukaran tercatat di backend.
-              Mencegah Ctrl+P browser mencetak gelang untuk booking yang belum
-              ditukar tanpa jejak audit /redemptions/print. */}
-          {preview.redemption.redeemed ? (
-            <div className="space-y-4 print:mt-0 print:space-y-3">
-              {preview.tickets.map((ticket) => (
-                <WristbandCard
-                  key={ticket.id}
-                  transaction={preview}
-                  ticket={ticket}
-                />
-              ))}
-            </div>
-          ) : null}
         </>
       ) : null}
     </section>

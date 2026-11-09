@@ -5,6 +5,7 @@ import Pagination from "@/components/admin/pagination";
 import ReportFilter from "@/components/admin/report-filter";
 import { EmptyRow, ErrorNotice, MetricCard } from "@/components/admin/ui";
 import StatusBadge from "@/components/counter/status-badge";
+import PageHeader from "@/components/ui/page-header";
 import { formatDateTime, formatNumber } from "@/lib/reports/format";
 import {
   readReportFilters,
@@ -44,16 +45,12 @@ export default async function VisitReportPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Laporan Kunjungan</h1>
-          <p className="mt-1 text-sm text-muted">
-            Satu baris mewakili satu transaksi pada tanggal kunjungannya.
-            Wisatawan terdaftar dan pengunjung hadir dihitung terpisah.
-          </p>
-        </div>
-        <ExportLink href={`${EXPORT_PATH}?${query}`} />
-      </div>
+      <PageHeader
+        eyebrow="Administrator"
+        title="Laporan Kunjungan"
+        description="Satu baris mewakili satu transaksi pada tanggal kunjungannya. Wisatawan terdaftar dan pengunjung hadir dihitung terpisah."
+        actions={<ExportLink href={`${EXPORT_PATH}?${query}`} />}
+      />
 
       <ReportFilter
         basePath={BASE_PATH}
@@ -77,7 +74,7 @@ export default async function VisitReportPage({
         />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+      <div className="card-surface overflow-x-auto">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-surface-soft text-left text-xs uppercase tracking-wide text-muted">
             <tr>

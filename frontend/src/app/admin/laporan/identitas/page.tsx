@@ -4,6 +4,7 @@ import ExportLink from "@/components/admin/export-link";
 import Pagination from "@/components/admin/pagination";
 import ReportFilter from "@/components/admin/report-filter";
 import { EmptyRow, ErrorNotice } from "@/components/admin/ui";
+import PageHeader from "@/components/ui/page-header";
 import {
   readReportFilters,
   toQueryString,
@@ -42,16 +43,12 @@ export default async function IdentityReportPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Laporan Identitas</h1>
-          <p className="mt-1 text-sm text-muted">
-            NIK hanya ditampilkan dalam bentuk tersamarkan. NIK mentah tidak
-            pernah dikirim ke browser maupun disertakan pada ekspor.
-          </p>
-        </div>
-        <ExportLink href={`${EXPORT_PATH}?${query}`} />
-      </div>
+      <PageHeader
+        eyebrow="Administrator"
+        title="Laporan Identitas"
+        description="NIK hanya ditampilkan dalam bentuk tersamarkan. NIK mentah tidak pernah dikirim ke browser maupun disertakan pada ekspor."
+        actions={<ExportLink href={`${EXPORT_PATH}?${query}`} />}
+      />
 
       <ReportFilter
         basePath={BASE_PATH}
@@ -60,7 +57,7 @@ export default async function IdentityReportPage({
         paginated
       />
 
-      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+      <div className="card-surface overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-surface-soft text-left text-xs uppercase tracking-wide text-muted">
             <tr>

@@ -7,8 +7,8 @@ import { screenshotPath } from "./support";
  * - P1-2: ekspor CSV menangani sesi kedaluwarsa tanpa JSON mentah.
  * - P2-2/P2-3: scan gate tidak hilang tanpa feedback; gangguan sistem tidak
  *   dilaporkan sebagai "Validasi ditolak".
- * - P2-4/P2-5: penukaran gagal memberi pesan di dekat tombol dan pratinjau
- *   disegarkan agar tidak mengulang aksi yang mustahil.
+ * - P2-4/P2-5: verifikasi Loket 2 gagal memberi pesan di dekat tombol dan
+ *   pratinjau disegarkan; verifikasi yang berhasil tetap read-only.
  */
 
 function localToday(): string {
@@ -75,7 +75,7 @@ test.describe("Gate: feedback scan (P2-2/P2-3)", () => {
   }) => {
     await page.goto("/gate");
     await expect(
-      page.getByRole("heading", { name: /validasi tiket/i }),
+      page.getByRole("heading", { name: /^gerbang$/i }),
     ).toBeVisible({ timeout: 30_000 });
 
     await page.route("**/api/gate/check-in", (route) => route.abort("failed"));
@@ -98,7 +98,7 @@ test.describe("Gate: feedback scan (P2-2/P2-3)", () => {
   }) => {
     await page.goto("/gate");
     await expect(
-      page.getByRole("heading", { name: /validasi tiket/i }),
+      page.getByRole("heading", { name: /^gerbang$/i }),
     ).toBeVisible({ timeout: 30_000 });
 
     await page.context().clearCookies();
@@ -120,8 +120,8 @@ test.describe("Gate: feedback scan (P2-2/P2-3)", () => {
   });
 });
 
-test.describe("Penukaran gagal (P2-4/P2-5)", () => {
-  test("pesan muncul di dekat tombol + pratinjau disegarkan, tanpa keadaan berbahaya", async ({
+test.describe("Verifikasi Loket 2 (P2-4/P2-5)", () => {
+  test("verifikasi read-only berhasil, lalu kegagalan memberi pesan dekat tombol", async ({
     browser,
   }) => {
     // Siapkan satu booking online yang sudah lunas agar punya token penukaran nyata.
@@ -135,7 +135,7 @@ test.describe("Penukaran gagal (P2-4/P2-5)", () => {
     try {
       await visitorPage.goto("/booking");
       await visitorPage.locator("#visit_date").fill(localToday());
-      await visitorPage.locator("#visitor-0-name").fill("Tukar Gagal QA");
+      await visitorPage.locator("#visitor-0-name").fill("Verifikasi QA");
       await visitorPage.locator("#visitor-0-nik").fill("3404010101900002");
       await visitorPage.getByRole("button", { name: /buat booking/i }).click();
       await visitorPage.waitForURL(/\/booking\/\d+$/, { timeout: 40_000 });
@@ -175,8 +175,47 @@ test.describe("Penukaran gagal (P2-4/P2-5)", () => {
         }
       });
 
-      // Konfirmasi dipaksa gagal (409) untuk meniru penukaran oleh petugas lain.
-      await page.route("**/api/counter/redemptions/confirm", (route) =>
+      await page.goto("/counter/penukaran");
+      await expect(
+        page.getByRole("heading", { name: /verifikasi booking online/i }),
+      ).toBeVisible({ timeout: 30_000 });
+
+      await page.locator("#redemption_token").fill(token);
+      await page.getByRole("button", { name: /periksa kode/i }).click();
+      await expect(
+        page.getByRole("heading", { name: /ringkasan pesanan/i }),
+      ).toBeVisible({ timeout: 30_000 });
+      expect(lookupTokens).toContain(token);
+
+      // Read-only: no wristband and no confirm/print action at Loket 2.
+      await expect(page.locator("article.wristband")).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: /konfirmasi penukaran/i }),
+      ).toHaveCount(0);
+
+      // Successful verification reports the next step and stays read-only.
+      await page.getByRole("button", { name: /verifikasi booking/i }).click();
+      await expect(
+        page.getByText(
+          "Booking terverifikasi. Silakan menuju gate untuk pencetakan tiket fisik.",
+          { exact: true },
+        ),
+      ).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator("article.wristband")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: /cetak/i })).toHaveCount(0);
+
+      await page.screenshot({
+        path: screenshotPath(
+          "interactions",
+          "loket2-verified",
+          "1280x800",
+          "screen",
+        ),
+        caret: "initial",
+      });
+
+      // Failure path: the verify call is forced to fail.
+      await page.route("**/api/counter/redemptions/verify", (route) =>
         route.fulfill({
           status: 409,
           contentType: "application/json",
@@ -186,17 +225,8 @@ test.describe("Penukaran gagal (P2-4/P2-5)", () => {
         }),
       );
 
-      await page.goto("/counter/penukaran");
-      await page.locator("#redemption_token").fill(token);
-      await page.getByRole("button", { name: /periksa kode/i }).click();
-      await expect(
-        page.getByRole("heading", { name: /ringkasan pesanan/i }),
-      ).toBeVisible({ timeout: 30_000 });
-      expect(lookupTokens).toContain(token);
-      await expect(page.locator("article.wristband")).toHaveCount(0);
-
       const before = lookups;
-      await page.getByRole("button", { name: /konfirmasi penukaran/i }).click();
+      await page.getByRole("button", { name: /verifikasi booking/i }).click();
 
       // P2-4: pesan error muncul tepat di dekat baris tombol.
       await expect(page.locator('p[role="alert"]').first()).toContainText(
@@ -210,12 +240,12 @@ test.describe("Penukaran gagal (P2-4/P2-5)", () => {
 
       // Tidak ada gelang tercetak dan tombol tidak tertinggal di status memproses.
       await expect(page.locator("article.wristband")).toHaveCount(0);
-      await expect(page.getByRole("button", { name: /mencatat/i })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: /memverifikasi/i })).toHaveCount(0);
 
       await page.screenshot({
         path: screenshotPath(
           "interactions",
-          "redemption-confirm-failed",
+          "loket2-verify-failed",
           "1280x800",
           "screen",
         ),

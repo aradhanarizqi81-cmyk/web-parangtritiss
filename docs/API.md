@@ -146,18 +146,23 @@ belum berstatus `paid`. Pencetakan ulang dibedakan di `audit_logs`
 `barcode_token` untuk check-in gerbang. Pratinjau gelang mencetak Code128 dari
 `tickets[].ticket_code` sebagai identitas individual.
 
-## Endpoint penukaran (counter redemption)
+## Endpoint verifikasi & penukaran loket (counter redemption)
 
 Penukaran tiket fisik (gelang) untuk **booking online** yang sudah lunas. Semua
 endpoint di bawah ini memerlukan `auth:sanctum` **dan** `role:cashier,admin`,
 diotorisasi lewat `TransactionPolicy::lookupRedemption` /
-`confirmRedemption` / `printRedemption`, serta dibatasi rate limiter
-`counter-redemption` (120/menit per petugas + IP).
+`verifyRedemption` / `confirmRedemption` / `printRedemption`, serta dibatasi
+rate limiter `counter-redemption` (120/menit per petugas + IP).
 
 **Klien tidak pernah mengirim `transaction_id`**: booking selalu ditemukan dari
 kode penukaran, dan kode tersebut tidak pernah dikirim lewat URL/`query`.
-Ketiga endpoint menerima body `{ "redemption_token": "RDM-…" }` dan membalikkan
+Semua endpoint menerima body `{ "redemption_token": "RDM-…" }` dan membalikkan
 `404` bila kode tidak dikenal atau bukan transaksi `source=online`.
+
+**Pembagian tugas:** Loket 2 hanya **memverifikasi** (read-only) dan mengarahkan
+pengunjung ke gerbang. Pencetakan tiket fisik dilakukan di gerbang lewat
+[`POST /api/v1/gate/print`](#post-apiv1gateprint), dan hanya aksi itu yang
+mengonsumsi token.
 
 ### `POST /api/v1/counter/redemptions/lookup`
 Pratinjau read-only. **Tidak mengubah status apa pun** dan tidak menulis audit —
@@ -170,12 +175,27 @@ dan blok `redemption` berisi `status`, `status_label`, `can_redeem`,
 `can_reprint`, serta `block_reason` — `200` + alasan, bukan error, supaya petugas
 tetap bisa membaca booking yang belum lunas.
 
+### `POST /api/v1/counter/redemptions/verify`
+Verifikasi kecocokan booking oleh petugas loket. **Read-only**: tidak mengubah
+`redeemed_at`, tidak mencetak tiket, tidak membuat check-in. Satu-satunya efek
+sampingnya adalah audit `counter_redemption.verified` (tanpa token/NIK).
+
+Respons `200` memakai bentuk yang sama dengan `lookup`, dengan pesan tetap:
+
+```
+Booking terverifikasi. Silakan menuju gate untuk pencetakan tiket fisik.
+```
+
+`404` bila kode tidak dikenal atau bukan booking online. Booking yang belum
+lunas atau sudah ditukarkan tetap dijawab `200` dengan `can_redeem`/
+`block_reason` pada blok `redemption`.
+
 ### `POST /api/v1/counter/redemptions/confirm`
-Satu-satunya aksi yang menandai booking ditukarkan (`redeemed_at`,
-`redeemed_by_user_id`, audit `counter_redemption.completed`). Dijalankan dalam
-transaksi database dengan `lockForUpdate` **dan** pembaruan bersyarat
-`WHERE redeemed_at IS NULL`, sehingga dua permintaan bersamaan tetap
-menghasilkan **satu** penukaran.
+Aksi penukaran klasik (opsional, bukan jalur UI Loket 2 saat ini). Menandai
+booking ditukarkan (`redeemed_at`, `redeemed_by_user_id`, audit
+`counter_redemption.completed`) dalam transaksi database dengan `lockForUpdate`
+**dan** pembaruan bersyarat `WHERE redeemed_at IS NULL`, sehingga dua permintaan
+bersamaan tetap menghasilkan **satu** penukaran.
 
 - `422` bila pembayaran belum sukses atau tiket belum diterbitkan;
 - `409` bila sudah pernah ditukarkan (stempel waktu penukaran pertama tetap);
@@ -348,10 +368,15 @@ tanggal kunjungan, dan status hak sebelum mengizinkan klaim.
 ## Endpoint gerbang (gate)
 
 Semua endpoint di bawah memerlukan `auth:sanctum` **dan** middleware
-`role:gate_staff,admin`, lalu diotorisasi ulang `TransactionPolicy` lewat
-ability `checkInGate`. `visitor` dan `cashier` selalu `403`; anonim `401`.
-Endpoint check-in juga dibatasi rate limit (`throttle:gate-checkin`, 120/menit
-per petugas + IP).
+`role:gate_staff,admin`, lalu diotorisasi ulang `TransactionPolicy`
+(`checkInGate` untuk check-in, `printGateTickets` untuk pencetakan).
+`visitor` dan `cashier` selalu `403`; anonim `401`. Semua endpoint dibatasi
+rate limiter (check-in: `throttle:gate-checkin`; pencetakan:
+`throttle:counter-redemption`), 120/menit per petugas + IP.
+
+Dua alur ini **terpisah dan tidak boleh dicampur**: check-in memakai barcode
+gerbang 40 karakter, sedangkan pencetakan tiket fisik memakai kode penukaran
+`RDM-`.
 
 ### `POST /api/v1/gate/check-in`
 Memvalidasi barcode grup dan mencatat kedatangan seluruh rombongan satu
@@ -400,6 +425,40 @@ Respons sukses `201` (tanpa NIK maupun `barcode_token`):
 
 Check-in **tidak pernah** mengubah nominal pembayaran atau menambah pendapatan.
 Aksi sukses dicatat di `audit_logs` sebagai `gate.checked_in` tanpa token/NIK.
+Kode penukaran `RDM-` **bukan** barcode gerbang dan ditolak di sini; kode itu
+dipakai di alur pencetakan tiket fisik.
+
+### `POST /api/v1/gate/print/lookup`
+Pratinjau read-only untuk pencetakan tiket fisik booking online. Body:
+`{ "code": "RDM-…" }` (spasi/newline dari pemindai dipangkas server).
+**Tidak mengonsumsi token, tidak mencetak, tidak menulis audit.**
+
+- `404` bila kode tidak dikenal, bukan `source=online`, atau berupa kode tiket
+  `TKT-`/barcode gerbang;
+- `409` bila token sudah pernah dikonsumsi (`redeemed_at` terisi);
+- `422` bila pembayaran belum `success` atau transaksi belum `paid`.
+
+Respons `200` memakai `RedemptionResource`: ringkasan booking, `visitors`
+(hanya `masked_nik`), dan blok `redemption`. `redemption_token` tidak pernah
+dikembalikan, sehingga kode tidak bocor ke klien/log.
+
+### `POST /api/v1/gate/print`
+Mencetak tiket fisik dan **mengonsumsi token tepat sekali**. Body:
+`{ "code": "RDM-…" }`; field `barcode_token` ditolak validasi. Transaksi dikunci
+(`lockForUpdate`), lalu `redeemed_at`/`redeemed_by_user_id` diisi lewat
+pembaruan bersyarat `WHERE redeemed_at IS NULL`, sehingga dua permintaan
+bersamaan hanya menghasilkan satu konsumsi dan yang kalah mendapat `409`.
+Seluruh tiket diubah ke `printed` (`printed_at` pertama dipertahankan bila sudah
+pernah dicetak), lalu audit `gate.tickets_printed` atau
+`gate.tickets_reprinted`.
+
+- `404` / `422` seperti lookup;
+- `409` bila token sudah dikonsumsi (stempel waktu dan `printed_at` pertama
+  tidak berubah);
+- sukses → `200`, pesan `Tiket fisik berhasil dicetak.`
+
+Pencetakan **bukan** check-in: tidak membuat `transaction_checkins`, tidak
+mengubah `barcode_token`, dan tidak menyentuh hak fasilitas/welcome drink.
 
 ## Endpoint admin (dashboard & laporan)
 
@@ -496,6 +555,7 @@ dengan filter yang sama, **tanpa paginasi**. Jumlah baris dibatasi
 | `POST /counter/transactions/{id}/confirm-payment` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
 | `POST /counter/transactions/{id}/print` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
 | `POST /counter/redemptions/lookup` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
+| `POST /counter/redemptions/verify` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
 | `POST /counter/redemptions/confirm` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
 | `POST /counter/redemptions/print` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
 | `POST /counter/facilities/lookup` | ⛔ 403 | ✅ | ⛔ 403 | ✅ | ⛔ 401 |
@@ -507,6 +567,8 @@ dengan filter yang sama, **tanpa paginasi**. Jumlah baris dibatasi
 | `POST /bookings/{id}/simulate-payment` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ⛔ 403 | ⛔ 401 |
 | `POST /bookings/{id}/print` | ✅ milik sendiri | ⛔ 403 | ⛔ 403 | ✅ online | ⛔ 401 |
 | `POST /gate/check-in` | ⛔ 403 | ⛔ 403 | ✅ | ✅ | ⛔ 401 |
+| `POST /gate/print/lookup` | ⛔ 403 | ⛔ 403 | ✅ | ✅ | ⛔ 401 |
+| `POST /gate/print` | ⛔ 403 | ⛔ 403 | ✅ | ✅ | ⛔ 401 |
 | `GET /admin/dashboard` | ⛔ 403 | ⛔ 403 | ⛔ 403 | ✅ | ⛔ 401 |
 | `GET /admin/reports/*` | ⛔ 403 | ⛔ 403 | ⛔ 403 | ✅ | ⛔ 401 |
 | `GET /admin/reports/*/export` | ⛔ 403 | ⛔ 403 | ⛔ 403 | ✅ | ⛔ 401 |

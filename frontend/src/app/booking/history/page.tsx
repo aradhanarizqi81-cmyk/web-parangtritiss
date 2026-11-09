@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import StatusBadge from "@/components/counter/status-badge";
+import AccessDenied from "@/components/ui/access-denied";
+import Alert from "@/components/ui/alert";
+import { buttonClasses } from "@/components/ui/button";
+import Card from "@/components/ui/card";
+import PageHeader from "@/components/ui/page-header";
 import { getCurrentUser } from "@/lib/auth/guard";
 import { canUseBooking } from "@/lib/auth/roles";
 import { fetchBookings } from "@/lib/booking/server";
@@ -16,14 +21,7 @@ export default async function BookingHistoryPage() {
   }
 
   if (!canUseBooking(user.role)) {
-    return (
-      <section className="mx-auto max-w-2xl px-4 py-12">
-        <h1 className="text-2xl font-semibold">Akses ditolak</h1>
-        <p className="mt-2 text-sm text-muted">
-          Anda tidak berhak melihat riwayat booking.
-        </p>
-      </section>
-    );
+    return <AccessDenied description="Anda tidak berhak melihat riwayat booking." />;
   }
 
   const result = await fetchBookings();
@@ -33,12 +31,7 @@ export default async function BookingHistoryPage() {
 
     return (
       <section className="mx-auto max-w-3xl px-4 py-12">
-        <p
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
-          {result.message}
-        </p>
+        <Alert tone="danger">{result.message}</Alert>
       </section>
     );
   }
@@ -48,38 +41,33 @@ export default async function BookingHistoryPage() {
 
   return (
     <section className="mx-auto max-w-3xl px-4 py-12">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Riwayat booking</h1>
-          <p className="mt-2 text-sm text-muted">
-            {isAdmin
-              ? "Semua booking online terbaru (maksimal 50)."
-              : "Booking online milik Anda, terbaru lebih dahulu (maksimal 50)."}
-          </p>
-        </div>
-        {isAdmin ? null : (
-          <Link
-            href="/booking"
-            className="text-sm font-medium text-ocean hover:underline"
-          >
-            Booking baru
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        eyebrow="Booking online"
+        title="Riwayat booking"
+        description={
+          isAdmin
+            ? "Semua booking online terbaru (maksimal 50)."
+            : "Booking online milik Anda, terbaru lebih dahulu (maksimal 50)."
+        }
+        actions={
+          isAdmin ? undefined : (
+            <Link href="/booking" className={buttonClasses({ size: "md" })}>
+              Booking baru
+            </Link>
+          )
+        }
+      />
 
       {bookings.length === 0 ? (
-        <p className="mt-8 rounded-md border border-line bg-surface px-4 py-6 text-sm text-muted">
-          Belum ada booking.
-        </p>
+        <Card className="mt-8">
+          <p className="text-sm text-muted">Belum ada booking.</p>
+        </Card>
       ) : (
         <ul className="mt-8 space-y-3">
           {bookings.map((booking) => (
             <li key={booking.id}>
-              <Link
-                href={`/booking/${booking.id}`}
-                className="block rounded-lg border border-line bg-surface p-4 hover:border-ocean/40"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
+              <Link href={`/booking/${booking.id}`} className="block">
+                <Card className="flex flex-wrap items-center justify-between gap-3 transition-colors hover:border-ocean/40 hover:shadow-raised">
                   <div>
                     <p className="font-mono text-sm font-semibold">
                       {booking.transaction_code}
@@ -98,7 +86,7 @@ export default async function BookingHistoryPage() {
                       {formatRupiah(booking.total_amount)}
                     </span>
                   </div>
-                </div>
+                </Card>
               </Link>
             </li>
           ))}

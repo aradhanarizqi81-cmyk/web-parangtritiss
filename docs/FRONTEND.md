@@ -26,7 +26,7 @@ frontend/
       api/counter/transactions/[id]/route.ts          # BFF: detail
       api/counter/transactions/[id]/confirm-payment/route.ts
       api/counter/transactions/[id]/print/route.ts
-      api/counter/redemptions/{lookup,confirm,print}/route.ts  # BFF: penukaran
+      api/counter/redemptions/{lookup,verify,confirm,print}/route.ts  # BFF: verifikasi/penukaran
       api/counter/facilities/{lookup,claim}/route.ts  # BFF: klaim fasilitas
       api/booking/tariffs/route.ts                    # BFF: tarif booking
       api/bookings/route.ts                           # BFF: daftar + buat booking
@@ -34,6 +34,8 @@ frontend/
       api/bookings/[id]/simulate-payment/route.ts     # BFF: simulasi pembayaran
       api/bookings/[id]/print/route.ts                # BFF: catat cetak tiket
       api/gate/check-in/route.ts                      # BFF: validasi gerbang
+      api/gate/print/lookup/route.ts                  # BFF: pratinjau cetak gate
+      api/gate/print/route.ts                         # BFF: cetak tiket fisik gate
       api/admin/reports/{visits,transactions,
         vehicles,identities}/export/route.ts          # BFF: unduh CSV laporan
       login/page.tsx                                  # form login wisatawan (client)
@@ -49,14 +51,15 @@ frontend/
       counter/page.tsx                                # loket (server) + counter-workspace.tsx
       counter/transactions/[id]/page.tsx              # detail (server) + transaction-actions.tsx
       counter/transactions/[id]/print/page.tsx        # halaman cetak tiket
-      counter/penukaran/page.tsx                      # meja penukaran + redemption-workspace.tsx
+      counter/penukaran/page.tsx                      # verifikasi booking + redemption-workspace.tsx
       counter/fasilitas/page.tsx                      # meja fasilitas + facility-workspace.tsx
       booking/page.tsx                                # form booking (server) + booking-form.tsx
       booking/history/page.tsx                        # riwayat booking (server)
       booking/[id]/page.tsx                           # detail (server) + payment-simulation.tsx
       booking/[id]/print/page.tsx                     # halaman cetak tiket booking
       booking/[id]/print-tickets-action.tsx           # tombol catat cetak tiket
-      gate/page.tsx                                   # gerbang (server) + gate-checkin-form.tsx
+      gate/page.tsx                                   # gerbang (server) + gate-print-form.tsx
+                                                      # + gate-checkin-form.tsx
       layout.tsx page.tsx globals.css print.css
     components/       site-header.tsx, logout-button.tsx, field.tsx, barcode-svg.tsx
     components/counter/  status-badge.tsx, wristband-card.tsx, ticket-card.tsx,
@@ -71,7 +74,8 @@ frontend/
       counter/        types.ts, server.ts, redemption.ts (+ redemption.test.ts),
                       facility.ts (+ facility.test.ts)
       booking/        types.ts, server.ts, status.ts (+ status.test.ts)
-      gate/           types.ts, status.ts (+ status.test.ts)
+      gate/           types.ts, status.ts (+ status.test.ts),
+                      use-camera-scanner.ts            # kamera bersama gate
       reports/        types.ts, period.ts (+ period.test.ts), format.ts, server.ts
     proxy.ts          # optimistic auth gate (Next 16 Proxy / middleware)
   .env.example
@@ -232,7 +236,7 @@ Detail kontrak endpoint ada di [`docs/API.md`](API.md).
 
 ## Cetak gelang (desain & CSS cetak)
 
-Hasil cetak ketiga jalur (loket, penukaran, pratinjau booking) memakai satu
+Hasil cetak ketiga jalur (loket, gate, pratinjau booking) memakai satu
 komponen: `components/counter/wristband-card.tsx`. Komposisinya mengikuti
 gambar referensi **"Tiket Gelang Pantai Parangtritis"**: pita datar sangat
 memanjang (rasio ±8,4:1) yang terbagi enam zona — tab kunci berpasak,
@@ -326,6 +330,10 @@ Halaman `/gate` hanya untuk `gate_staff` dan `admin`; `visitor`, `cashier`, dan
 anonim ditolak. `canUseGate()` hanya gerbang tampilan — backend menolak peran
 lain lewat middleware `role:gate_staff,admin` + policy.
 
+Halaman ini memuat **dua alur terpisah** dan keduanya tidak boleh dicampur:
+pencetakan tiket fisik booking online (kode `RDM-`) dan validasi masuk
+(barcode gerbang).
+
 1. Gelang di halaman cetak (`/counter/transactions/[id]/print` dan
    `/booking/[id]/print`) menampilkan Code128-B dari `tickets[].ticket_code`
    sebagai identitas tiket individual. Token check-in gerbang tetap
@@ -334,7 +342,7 @@ lain lewat middleware `role:gate_staff,admin` + policy.
 2. `gate-checkin-form.tsx` menyediakan satu kolom teks yang siap menerima
    **pemindai barcode USB** (bertindak seperti keyboard dan menekan Enter),
    sehingga submit berjalan otomatis. Tersedia juga tombol "Validasi" untuk
-   input manual.
+   input manual, serta mode kamera.
 3. Form memanggil `POST /api/gate/check-in` (BFF) dengan **hanya**
    `barcode_token`. Token tidak pernah disimpan di `localStorage`/
    `sessionStorage`, tidak dimasukkan ke URL, dan dibersihkan setiap kali
@@ -343,6 +351,41 @@ lain lewat middleware `role:gate_staff,admin` + policy.
    (hijau, menampilkan kode transaksi, sumber, **jumlah hadir**, tanggal, waktu,
    petugas), sudah pernah check-in (kuning, `409`), atau ditolak (merah) dengan
    alasan aman dari backend. Backend tetap sumber kebenaran status.
+5. Kode `RDM-` **ditolak di klien sebelum fetch** dengan arahan ke bagian
+   pencetakan tiket fisik; backend juga menolaknya (`404`) karena kode penukaran
+   bukan barcode gerbang. Lihat *Alur pencetakan tiket fisik di gerbang*.
+
+Kontrak endpoint lengkap ada di [`docs/API.md`](API.md).
+
+## Alur pencetakan tiket fisik di gerbang
+
+`gate-print-form.tsx` menangani booking online yang sudah lunas. Kamera dan
+input manual memakai hook bersama `lib/gate/use-camera-scanner.ts` (dipakai juga
+oleh form check-in) supaya tidak ada duplikasi logika `BarcodeDetector`,
+`getUserMedia`, dan pembersihan stream.
+
+1. **Pindai `RDM-`.** Mode kamera atau kolom teks hanya menerima kode
+   penukaran. Nilai non-`RDM-` (barcode gerbang, `TKT-`) ditolak di klien tanpa
+   memanggil backend, sehingga kode tersebut tidak pernah dikirim ke check-in.
+   Pemindaian berulang untuk nilai yang sama diabaikan agar tidak menembak
+   lookup berkali-kali.
+2. **Lookup read-only.** `POST /api/gate/print/lookup` menampilkan ringkasan
+   booking. Tahap ini **tidak** mengonsumsi token, tidak mencetak, dan tidak
+   menulis audit. Kamera dihentikan setelah kode terbaca.
+3. **Cetak eksplisit.** Tombol "Cetak tiket fisik" memanggil
+   `POST /api/gate/print`. Baru pada aksi ini backend mengisi `redeemed_at`
+   secara atomik (pembaruan bersyarat `WHERE redeemed_at IS NULL`, `409` untuk
+   percobaan kedua), menandai seluruh tiket `printed`, menulis audit
+   `gate.tickets_printed`/`gate.tickets_reprinted`, lalu merender gelang dan
+   membuka `window.print()`. Tidak ada pencetakan otomatis saat lookup.
+4. **Bukan check-in.** Pencetakan tidak membuat `transaction_checkins`, tidak
+   mengubah status transaksi, dan tidak menyentuh hak fasilitas. Check-in tetap
+   memakai barcode gerbang di bagian bawah halaman.
+
+Kamera memerlukan HTTPS atau `localhost`. Bila izin ditolak, perangkat tidak
+tersedia, atau `BarcodeDetector` tidak didukung, form menampilkan pesan dan
+tetap bisa dipakai lewat input manual/USB scanner. Stream dihentikan saat
+komponen dilepas, saat mode diganti, dan setelah lookup/cetak selesai.
 
 Kontrak endpoint lengkap ada di [`docs/API.md`](API.md).
 
@@ -382,44 +425,41 @@ middleware `role:admin` + policy menolak peran lain dengan `403`.
 
 Kontrak endpoint lengkap ada di [`docs/API.md`](API.md).
 
-## Alur penukaran tiket fisik
+## Alur verifikasi booking online di Loket 2
 
 Halaman `/counter/penukaran` hanya untuk `cashier` dan `admin`; `visitor`,
 `gate_staff`, dan anonim ditolak proxy, gerbang UI `canUseCounter()`, lalu
 middleware `role:cashier,admin` + policy di backend.
 
+Loket 2 **hanya memverifikasi** booking dan mengarahkan pengunjung ke gerbang.
+Halaman ini tidak mengonsumsi token dan tidak mencetak tiket.
+
 1. **Pindai atau ketik.** Kolom `redemption_token` siap menerima pemindai
-   barcode USB (mengetik seperti keyboard lalu menekan Enter), disertai tombol
-   validasi untuk input manual. Kode tidak pernah dimasukkan ke URL — hanya ke
-   body POST same-origin, sehingga tidak tercatat di riwayat browser maupun log
-   akses. Kolom dikosongkan dan difokuskan lagi tiap kali selesai.
-2. **Pratinjau read-only.** Submit memanggil `POST /api/counter/redemptions/lookup`
-   (BFF) lalu menampilkan ringkasan pesanan: pemilik, tanggal kunjungan, jumlah
-   pengunjung, jumlah kendaraan, jumlah tiket, dan status pembayaran — semuanya
-   dari `RedemptionResource`, tanpa `simulation_reference` dan hanya dengan
-   `masked_nik`. Membuka pratinjau **tidak** mengubah status apa pun.
-3. **Konfirmasi terpisah.** Tombol "Konfirmasi Penukaran" hanya muncul bila
-   `can_redeem` dan memanggil `POST .../confirm`. Kegagalan backend ditampilkan
-   apa adanya (belum lunas `422`, sudah ditukarkan `409`, kode tak dikenal
-   `404`) lewat pesan galat `ApiError`, sementara `redemptionTone()` di
-   `lib/counter/redemption.ts` hanya menentukan warna kartu status.
-   Keputusan tetap di backend (row lock + pembaruan bersyarat
-   `WHERE redeemed_at IS NULL`), jadi tombol yang dinonaktifkan bukan kontrol.
-4. **Cetak gelang.** Setelah `redeemed`, gelang dirender **inline** memakai
-   `components/counter/wristband-card.tsx` — satu gelang per tiket, berisi
-   identitas Pantai Parangtritis + ornamen ombak, tanggal kunjungan, kode
-   tiket, nama pengunjung, dan barcode identitas tiket individual. Kode itu
-   menjadi kunci input meja fasilitas (lihat *Alur klaim fasilitas*).
-   Tombolnya `wristbandButtonLabel()`: "Cetak Gelang" lalu "Cetak Ulang
-   Gelang". Tombol memanggil `POST .../print` (mencatat `printed_at` + audit)
-   **baru** kemudian `window.print()`; karena gelang sudah berada di DOM sebelum
-   itu, dialog cetak selalu memuat gelang yang benar. Seluruh elemen lain memakai
-   varian `print:hidden`.
-5. **Cetak ulang aman.** Pencetakan ulang tidak membuat tiket baru, tidak
-   menggandakan penukaran, dan tidak membuat check-in; stempel waktu cetak
-   pertama dipertahankan dan hanya audit `_tickets_reprinted` yang ditambahkan.
-6. "Penukaran baru" mereset kolom dan mengembalikan fokus ke input untuk
-   pengunjung berikutnya.
+   barcode USB (mengetik seperti keyboard lalu menekan Enter), kamera, atau
+   input manual. Kode tidak pernah dimasukkan ke URL — hanya ke body POST
+   same-origin, sehingga tidak tercatat di riwayat browser maupun log akses.
+2. **Pratinjau read-only.** "Periksa kode" memanggil
+   `POST /api/counter/redemptions/lookup` (BFF) lalu menampilkan ringkasan
+   pesanan dari `RedemptionResource`, tanpa `simulation_reference` dan hanya
+   dengan `masked_nik`. Membuka pratinjau **tidak** mengubah status apa pun.
+3. **Verifikasi read-only.** Tombol "Verifikasi Booking" memanggil
+   `POST /api/counter/redemptions/verify` — bukan `confirm`. Backend tidak
+   mengisi `redeemed_at`, tidak mencetak, dan tidak membuat check-in; satu-satunya
+   efek adalah audit `counter_redemption.verified`. Pesan sukses:
+   **"Booking terverifikasi. Silakan menuju gate untuk pencetakan tiket fisik."**
+4. **Tanpa gelang di loket.** Tidak ada `WristbandCard`, tombol konfirmasi, atau
+   tombol cetak di halaman ini; `redemptionTone()` di `lib/counter/redemption.ts`
+   hanya menentukan warna kartu status. Verifikasi read-only tidak mengubah
+   status, sehingga booking yang belum lunas atau sudah ditukarkan tetap tampil
+   sebagai ringkasan dengan `block_reason`; kode tak dikenal dijawab `404` dan
+   ditampilkan sebagai pesan galat, lalu pratinjau diambil ulang agar tombol
+   tidak tetap aktif untuk aksi yang mustahil.
+5. "Verifikasi baru" mereset kolom dan mengembalikan fokus ke input.
+
+Pencetakan tiket fisik dilakukan di `/gate` lewat
+*Alur pencetakan tiket fisik di gerbang*, dan hanya aksi itu yang mengonsumsi
+token. Endpoint `confirm`/`print` lama masih tersedia di API, tetapi bukan jalur
+UI Loket 2.
 
 Kontrak endpoint lengkap ada di [`docs/API.md`](API.md).
 

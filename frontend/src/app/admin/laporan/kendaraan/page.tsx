@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import ExportLink from "@/components/admin/export-link";
 import ReportFilter from "@/components/admin/report-filter";
 import { EmptyRow, ErrorNotice, MetricCard } from "@/components/admin/ui";
+import PageHeader from "@/components/ui/page-header";
 import { formatRupiah } from "@/lib/pricing/tariffs";
 import { formatNumber } from "@/lib/reports/format";
 import {
@@ -45,16 +46,12 @@ export default async function VehicleReportPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Laporan Kendaraan</h1>
-          <p className="mt-1 text-sm text-muted">
-            Rekap per jenis kendaraan berdasarkan tanggal kunjungan. Semua jenis
-            tetap ditampilkan, termasuk yang bernilai nol.
-          </p>
-        </div>
-        <ExportLink href={`${EXPORT_PATH}?${query}`} />
-      </div>
+      <PageHeader
+        eyebrow="Administrator"
+        title="Laporan Kendaraan"
+        description="Rekap per jenis kendaraan berdasarkan tanggal kunjungan. Semua jenis tetap ditampilkan, termasuk yang bernilai nol."
+        actions={<ExportLink href={`${EXPORT_PATH}?${query}`} />}
+      />
 
       <ReportFilter
         basePath={BASE_PATH}
@@ -70,7 +67,7 @@ export default async function VehicleReportPage({
         <MetricCard label="Nilai" value={formatRupiah(summary.subtotal)} />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+      <div className="card-surface overflow-x-auto">
         <table className="w-full min-w-[560px] text-sm">
           <thead className="bg-surface-soft text-left text-xs uppercase tracking-wide text-muted">
             <tr>

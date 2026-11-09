@@ -23,7 +23,7 @@ export default function Field({
         <p className="mt-1 text-xs text-muted">{hint}</p>
       ) : null}
       {error ? (
-        <p id={`${id}-error`} role="alert" className="mt-1 text-sm text-red-700">
+        <p id={`${id}-error`} role="alert" className="mt-1 text-sm text-danger">
           {error}
         </p>
       ) : null}

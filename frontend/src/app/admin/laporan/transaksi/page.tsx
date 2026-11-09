@@ -5,6 +5,7 @@ import Pagination from "@/components/admin/pagination";
 import ReportFilter from "@/components/admin/report-filter";
 import { EmptyRow, ErrorNotice, MetricCard } from "@/components/admin/ui";
 import StatusBadge from "@/components/counter/status-badge";
+import PageHeader from "@/components/ui/page-header";
 import { formatRupiah } from "@/lib/pricing/tariffs";
 import { formatDateTime, formatNumber } from "@/lib/reports/format";
 import {
@@ -45,16 +46,12 @@ export default async function TransactionReportPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Laporan Transaksi</h1>
-          <p className="mt-1 text-sm text-muted">
-            Rentang dapat dihitung dari tanggal transaksi dibuat, tanggal
-            kunjungan, atau waktu pembayaran berhasil.
-          </p>
-        </div>
-        <ExportLink href={`${EXPORT_PATH}?${query}`} />
-      </div>
+      <PageHeader
+        eyebrow="Administrator"
+        title="Laporan Transaksi"
+        description="Rentang dapat dihitung dari tanggal transaksi dibuat, tanggal kunjungan, atau waktu pembayaran berhasil."
+        actions={<ExportLink href={`${EXPORT_PATH}?${query}`} />}
+      />
 
       <ReportFilter
         basePath={BASE_PATH}
@@ -75,7 +72,7 @@ export default async function TransactionReportPage({
         />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+      <div className="card-surface overflow-x-auto">
         <table className="w-full min-w-[840px] text-sm">
           <thead className="bg-surface-soft text-left text-xs uppercase tracking-wide text-muted">
             <tr>

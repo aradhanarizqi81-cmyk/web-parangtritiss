@@ -140,7 +140,8 @@ Metadata hanya memuat konteks (mis. tarif lama → baru) tanpa NIK mentah.
 
 - Endpoint gerbang memerlukan autentikasi **dan** peran `gate_staff`/`admin`
   (middleware `role`), lalu diotorisasi ulang `TransactionPolicy` lewat ability
-  `checkInGate`. `visitor` dan `cashier` ditolak `403` walau sudah login.
+  `checkInGate` (check-in) atau `printGateTickets` (pencetakan tiket fisik).
+  `visitor` dan `cashier` ditolak `403` walau sudah login.
 - **Body check-in hanya memuat `barcode_token`.** Transaksi, status pembayaran,
   jumlah wisatawan, dan petugas divalidasi server dari database dan sesi; klien
   tidak dapat mengirim `transaction_id`, nominal, jumlah hadir, atau status
@@ -168,7 +169,19 @@ Metadata hanya memuat konteks (mis. tarif lama → baru) tanpa NIK mentah.
   kunjungan, jumlah hadir, waktu, dan nama petugas — tanpa NIK maupun
   `barcode_token`.
 - Pencatatan keberhasilan pada `audit_logs`: `gate.checked_in` (tanpa token/NIK).
-- Pemeriksaan tambahan: `tests/Feature/GateCheckinTest.php`.
+- **Cetak tiket fisik terpisah dari check-in.** `POST /gate/print/lookup` dan
+  `POST /gate/print` hanya menerima kode penukaran `RDM-` di field `code`; field
+  `barcode_token` ditolak validasi, dan barcode gerbang 40 karakter / kode
+  `TKT-` dijawab `404`. Lookup read-only tidak mengonsumsi token. Cetak
+  mengunci baris dan memakai pembaruan bersyarat `WHERE redeemed_at IS NULL`,
+  sehingga token hanya dapat dikonsumsi **sekali** (`409` untuk percobaan
+  kedua). Cetak tidak membuat `transaction_checkins`, tidak mengubah status
+  transaksi, dan tidak menyentuh hak fasilitas.
+- Respons maupun audit pencetakan tidak memuat token penukaran, NIK, atau
+  referensi pembayaran; audit hanya `gate.tickets_printed` /
+  `gate.tickets_reprinted` beserta kode transaksi dan jumlah tiket.
+- Pemeriksaan tambahan: `tests/Feature/GateCheckinTest.php` dan
+  `tests/Feature/GatePrintTest.php`.
 
 ## Dashboard & laporan admin (Fase 8)
 
@@ -196,7 +209,7 @@ Metadata hanya memuat konteks (mis. tarif lama → baru) tanpa NIK mentah.
   HttpOnly tetap tidak terlihat oleh browser (lihat [`FRONTEND.md`](FRONTEND.md)).
 - Pemeriksaan tambahan: `tests/Feature/AdminReportTest.php`.
 
-## Penukaran tiket fisik (counter redemption)
+## Verifikasi Loket 2 & konsumsi token di gate
 
 - **Token terpisah dari barcode gerbang.** `transactions.redemption_token`
   berbentuk `RDM-` + 24 karakter acak (unik, nullable), dibuat satu kali saat
@@ -215,33 +228,35 @@ Metadata hanya memuat konteks (mis. tarif lama → baru) tanpa NIK mentah.
   tidak pernah dikirim lewat URL/`query` sehingga tidak tercatat di riwayat
   browser maupun log akses, dan endpoint penukaran tidak menerima
   `transaction_id` apa pun.
-- **Hanya booking lunas.** `lookup` murni baca dan tidak pernah menandai
-  booking ditukarkan; `confirm` menolak `422` bila pembayaran belum `success`
-  atau tiket belum diterbitkan. `can_redeem`/`can_reprint`/`block_reason` pada
-  respons hanyalah gerbang tampilan.
-- **Tidak bisa dobel.** `confirm` mengunci baris (`lockForUpdate`) lalu
-  memakai pembaruan bersyarat `WHERE redeemed_at IS NULL`, sehingga dua
-  permintaan paralel tetap menghasilkan **satu** penukaran — yang kalah
-  dijawab `409`. Tombol di UI boleh dinonaktifkan, tetapi keputusan tetap ada
-  di database.
-- **Penukaran ≠ check-in.** Alur ini tidak pernah membuat baris
-  `transaction_checkins` maupun mengubah `transactions.status`; check-in gerbang
-  tetap memakai `barcode_token` miliknya sendiri.
-- **Cetak ulang aman.** `print` hanya mengisi `printed_at` (nilai pertama
-  dipertahankan) dan status `printed`; tidak membuat tiket, penukaran, atau
-  check-in ganda, dan selalu tercatat di audit sebagai
-  `_tickets_reprinted`.
+- **Loket 2 hanya memverifikasi.** `lookup` dan `verify` murni baca: tidak
+  mengubah `redeemed_at`, tidak mencetak, dan tidak membuat check-in. `verify`
+  hanya menulis audit `counter_redemption.verified`; `confirm`/`print` lama
+  tetap tersedia di API tetapi bukan jalur UI Loket 2.
+- **Konsumsi token hanya di gate, dan tidak bisa dobel.** `POST /gate/print`
+  mengunci baris (`lockForUpdate`) lalu memakai pembaruan bersyarat
+  `WHERE redeemed_at IS NULL`, sehingga dua permintaan paralel menghasilkan
+  **satu** konsumsi — yang kalah dijawab `409` tanpa mengubah stempel waktu
+  pertama. Tombol di UI boleh dinonaktifkan, tetapi keputusan ada di database.
+- **Cetak ≠ check-in.** Pencetakan tidak membuat `transaction_checkins`,
+  tidak mengubah `transactions.status`, tidak mengubah `barcode_token`, dan
+  tidak mengklaim hak fasilitas; check-in gerbang tetap memakai barcode
+  gerbangnya sendiri.
+- **Cetak ulang aman.** `printed_at` pertama dipertahankan dan status diubah ke
+  `printed`; tidak membuat tiket, konsumsi, atau check-in ganda, dan audit
+  mencatat `gate.tickets_reprinted` (atau `gate.tickets_printed` untuk cetak
+  pertama di gate).
 - **Tanpa referensi simulasi.** `RedemptionResource` sengaja tidak memuat
   `simulation_reference` — rahasia milik pengunjung, tidak perlu terlihat oleh
-  meja loket.
-- **Dicatat untuk audit.** `counter_redemption.completed`,
-  `counter_redemption.tickets_printed`, dan
-  `counter_redemption.tickets_reprinted` disertai `user_id`, `entity_type`,
-  `entity_id`, kode transaksi, dan jumlah tiket — tanpa token, NIK, maupun
-  referensi pembayaran.
+  meja loket maupun gate.
+- **Dicatat untuk audit.** `counter_redemption.verified`,
+  `gate.tickets_printed`, dan `gate.tickets_reprinted` disertai `user_id`,
+  `entity_type`, `entity_id`, kode transaksi, dan jumlah tiket — tanpa token,
+  NIK, maupun referensi pembayaran.
 - **Dibatasi laju.** Rate limiter `counter-redemption` (120/menit per petugas +
-  IP) membuat menebak kode percuma.
-- Pemeriksaan tambahan: `tests/Feature/RedemptionTest.php`.
+  IP) membatasi lookup/verify loket dan lookup/cetak gate, sehingga menebak kode
+  percuma. Check-in memakai `gate-checkin`.
+- Pemeriksaan tambahan: `tests/Feature/RedemptionTest.php` dan
+  `tests/Feature/GatePrintTest.php`.
 
 ## Klaim fasilitas per tiket (Fase 10)
 
